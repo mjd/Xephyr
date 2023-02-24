@@ -172,7 +172,7 @@ func (app *application) checkLineForUrls(line string) (*string, error) {
 }
 
 func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader) {
-	c.app.infoLog.Printf("connect " + c.app.config.username + " " + c.app.config.password + "\n")
+	c.app.infoLog.Printf("connect " + c.app.config.username + " <password>\n")
 	w.Write([]byte("connect " + c.app.config.username + " " + c.app.config.password + "\n"))
 
 	var buffer [1]byte // Seems like the length of the buffer needs to be small, otherwise will have to wait for buffer to fill up.

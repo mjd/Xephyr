@@ -1,0 +1,40 @@
+BOT_USERNAME=
+BOT_PASSWORD=
+YIRP_APIKEY=
+
+
+## build: builds all binaries
+build: clean build_bot
+	@printf "All binaries built!\n"
+
+## clean: cleans all binaries and runs go clean
+clean:
+	@echo "Cleaning..."
+	@- rm -f dist/*
+	@go clean
+	@echo "Cleaned!"
+
+## build_bot: builds the bot
+build_bot:
+	@echo "Building bot..."
+	@go build -o dist/Xephyr ./cmd
+	@echo "Bot built!"
+
+## start: starts bot
+start: start_bot
+
+## start_bot: starts the bot
+start_bot: build_bot
+	@echo "Starting the bot..."
+	@env BOT_USERNAME=${BOT_USERNAME} BOT_PASSWORD=${BOT_PASSWORD} YIRP_APIKEY=${YIRP_APIKEY} ./dist/Xephyr &
+	@echo "Bot running!"
+
+## stop: stops the bot
+stop: stop_bot
+	@echo "All applications stopped"
+
+## stop_bot: stops the Bot
+stop_bot:
+	@echo "Stopping the Bot..."
+	@-pkill -SIGTERM -f "Xephyr"
+	@echo "Stopped Bot"
