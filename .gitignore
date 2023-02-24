@@ -1,0 +1,8 @@
+config
+dist
+.env*
+*.exe
+.DS_Store
+Makefile
+database.yml
+log

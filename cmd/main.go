@@ -2,18 +2,27 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/reiver/go-telnet"
 )
 
 type config struct {
-	srvAddr  string
-	username string
-	password string
+	srvAddr     string
+	yirpAPIAddr string
+	yirpapikey  string
+	username    string
+	password    string
 }
 
 type application struct {
@@ -29,10 +38,13 @@ func main() {
 	var cfg config
 
 	flag.StringVar(&cfg.srvAddr, "s", "dino.surly.org:6250", "Server:port address")
-	flag.StringVar(&cfg.username, "u", "username", "Username")
-	flag.StringVar(&cfg.password, "p", "passowrd", "Password")
+	flag.StringVar(&cfg.yirpAPIAddr, "yirpaddr", "https://api.yirp.org/v1/shorten", "Yirp API Address")
 
 	flag.Parse()
+
+	cfg.username = os.Getenv("BOT_USERNAME")
+	cfg.password = os.Getenv("BOT_PASSWORD")
+	cfg.yirpapikey = os.Getenv("YIRP_APIKEY")
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -62,7 +74,105 @@ type caller struct {
 	app application
 }
 
+type YirpRequest struct {
+	ApiKey  string `json:"api_key"`
+	LongUrl string `json:"long_url"`
+	Domain  string `json:"domain,omitempty"`
+}
+
+type YirpResponse struct {
+	ShortUrl  string `json:"short_url"`
+	LongUrl   string `json:"long_url"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (app *application) botSend(w telnet.Writer, data string) {
+	app.infoLog.Println(data)
+	_, err := w.Write([]byte(data))
+	if err != nil {
+		app.errorLog.Println(err)
+	}
+}
+
+func (app *application) sendUrlToYirp(url string) (*string, error) {
+	yirpRequest := YirpRequest{
+		ApiKey:  app.config.yirpapikey,
+		LongUrl: url,
+	}
+	marshalled, err := json.Marshal(yirpRequest)
+	if err != nil {
+		app.errorLog.Fatalf("impossible to marshall yirpRequest: %s", err)
+	}
+
+	req, err := http.NewRequest("POST", app.config.yirpAPIAddr, bytes.NewReader(marshalled))
+	if err != nil {
+		app.errorLog.Fatalf("impossible to build request: %s", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// create http client
+	// do not forget to set timeout; otherwise, no timeout!
+	client := http.Client{Timeout: 10 * time.Second}
+	// send the request
+	res, err := client.Do(req)
+	if err != nil {
+		app.errorLog.Fatalf("impossible to send request: %s", err)
+	}
+	app.infoLog.Printf("status Code: %d", res.StatusCode)
+
+	// we do not forget to close the body to free resources
+	// defer will execute that at the end of the current function
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		app.errorLog.Println(res.Status)
+
+		return nil, errors.New(res.Status)
+	}
+
+	var yirpResponse YirpResponse
+	err = json.NewDecoder(res.Body).Decode(&yirpResponse)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	fmt.Println(yirpResponse)
+
+	return &yirpResponse.ShortUrl, nil
+}
+
+func (app *application) checkLineForUrls(line string) (*string, error) {
+	var urlFlag string = "GRAVYURLMATCH"
+	var delimeterRegex string = "[\\s]"
+
+	s := regexp.MustCompile(delimeterRegex).Split(line, -1)
+	if len(s) < 3 {
+		return nil, nil
+	}
+
+	if s[0] == urlFlag && len(s) >= 3 {
+		authorID := s[1]
+		longUrl := s[2]
+		if strings.HasPrefix(strings.ToLower(longUrl), "www") {
+			longUrl = "http://" + longUrl
+		}
+		u, err := url.ParseRequestURI(longUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		shortUrl, err := app.sendUrlToYirp(u.String())
+		if err == nil && shortUrl != nil {
+			botData := "add_url " + authorID + " " + *shortUrl + " " + u.String() + "\n"
+			botData = botData + "@trigger me/TRIGGER_LAST_URL\n"
+			return &botData, nil
+		}
+	}
+	return nil, nil
+}
+
 func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader) {
+	c.app.infoLog.Printf("connect " + c.app.config.username + " " + c.app.config.password + "\n")
 	w.Write([]byte("connect " + c.app.config.username + " " + c.app.config.password + "\n"))
 
 	var buffer [1]byte // Seems like the length of the buffer needs to be small, otherwise will have to wait for buffer to fill up.
@@ -82,10 +192,16 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 		line.WriteByte(p[0])
 		if p[0] == '\n' {
 			lineString := line.String()
-			println(lineString)
 
-			// TODO: Process lineString HERE
+			command, err := c.app.checkLineForUrls(lineString)
+
+			if err != nil {
+				c.app.errorLog.Println(err)
+			}
+			if command != nil {
+				c.app.botSend(w, *command)
+			}
+			line.Reset()
 		}
-
 	}
 }
