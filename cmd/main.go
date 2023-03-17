@@ -65,7 +65,6 @@ func main() {
 	}
 	if err != nil {
 		errorLog.Fatal(err)
-
 	}
 
 }
@@ -101,12 +100,14 @@ func (app *application) sendUrlToYirp(url string) (string, error) {
 	}
 	marshalled, err := json.Marshal(yirpRequest)
 	if err != nil {
-		app.errorLog.Fatalf("impossible to marshall yirpRequest: %s", err)
+		app.errorLog.Printf("impossible to marshall yirpRequest: %s", err)
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", app.config.yirpAPIAddr, bytes.NewReader(marshalled))
 	if err != nil {
-		app.errorLog.Fatalf("impossible to build request: %s", err)
+		app.errorLog.Printf("impossible to build request: %s", err)
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -116,7 +117,8 @@ func (app *application) sendUrlToYirp(url string) (string, error) {
 	// send the request
 	res, err := client.Do(req)
 	if err != nil {
-		app.errorLog.Fatalf("impossible to send request: %s", err)
+		app.errorLog.Printf("impossible to send request: %s", err)
+		return "", err
 	}
 	app.infoLog.Printf("status Code: %d", res.StatusCode)
 
