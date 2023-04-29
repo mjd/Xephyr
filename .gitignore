@@ -6,3 +6,5 @@ dist
 Makefile
 database.yml
 log
+*~
+

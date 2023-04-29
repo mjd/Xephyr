@@ -1,0 +1,26 @@
+@lock me=*mjd
+@Desc me=A MUSHbot by mjd. I do Urls.%rMy Go code is https://github.com/mjd/Xephyr%rUsing the service at http://www.yirp.org for shortening Urls.%r%b'ghelp' for help
+&LASTOFF me=Tue Mar 14 13:58:39 2023
+&DB me=#1818
+&GURL_ITEM me=[u(v(db)/URL_SHORT_%0)] -> [u(v(db)/URL_LONG_%0)] [name(u(v(db)/URL_DBREF_%0))([u(v(db)/URL_DBREF_%0)])]
+&CMD_GURL_ONE me=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,1)
+&CMD_GURL_MANY me=$gurl *:@pemit %#=u(FUNC_GURL_DRIVER,%0)
+&FUNC_REAL_URL_ID me=mod(add(u(v(db)/URL_MAX),sub(u(v(db)/URL_CURRENT),%0)),u(v(db)/URL_MAX))
+&FUNC_GURL_DRIVER me=Most Recent URLs:%r[setq(0,min(u(v(db)/URL_MAX),max(%0,1)))][iter(map(me/FUNC_REAL_URL_ID,lnum(sub(%q0,1),0)),u(GURL_ITEM,##),%b,%r)]
+&TRIGGER_LAST_URL me=pose > [u(v(db)/URL_SHORT_[u(v(db)/URL_CURRENT)])]
+&GHELP_1 me=[name(me)] is a bot made by [name(owner(me))]. Send him your feature requests.
+&GHELP_2 me=%bgurl - show the most recent Url
+&GHELP_3 me=%bgurl <N> - show the most recent <N> Urls
+&CMD_GHELP me=$ghelp:@pemit %#=parse(lattr(me/GHELP_*),%r[get_eval(me/##)])
+&URL_MATCHER me=^(http\:|https\:|ftp\:|ftps\:|telnet\:|telnets\:|ssh\:|www\.)[^ \"]+:@switch member(v(L_IGNORE),owner(%#))=0,@pemit me=GRAVYURLMATCH [owner(%#)] %0,{@@}
+@set me/URL_MATCHER = regexp
+@lock/UseLock me=!$*Mesozoic Records Dinosaur|!$*Killer Asteroid
+@Startup me=@wait 30=hangout
+&GHELP_10 me=%b%bp [name(me)]=home hangout to send me there
+@Akill me=@wait 5=hangout
+@Amove me=@switch [loc(me)]=[loc(#123)],{@@},[home(me)],{@@},{hangout}
+&L_IGNORE me=#1 #163
+@set me=MONITOR
+@set me=VISUAL
+@set me=ROBOT
+@set me=COMMANDS
