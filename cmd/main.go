@@ -222,7 +222,7 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 			if err != nil {
 				c.app.errorLog.Println(err)
 			}
-			c.app.botSend(w, "@pemit me=ping\n")
+			c.app.botSend(w, "@@\n")
 			if command != "" {
 				c.app.botSend(w, command)
 			}
