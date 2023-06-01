@@ -203,6 +203,7 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 		// Read 1 byte.
 		n, err := r.Read(p)
 		if n <= 0 && nil == err {
+			c.app.infoLog.Println("READ 0")
 			continue
 		} else if n <= 0 && nil != err {
 			break
@@ -221,6 +222,7 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 			if err != nil {
 				c.app.errorLog.Println(err)
 			}
+			c.app.botSend(w, "@@")
 			if command != "" {
 				c.app.botSend(w, command)
 			}
