@@ -12,7 +12,7 @@
 &GHELP_2 me=%bgurl - show the most recent Url
 &GHELP_3 me=%bgurl <N> - show the most recent <N> Urls
 &CMD_GHELP me=$ghelp:@pemit %#=parse(lattr(me/GHELP_*),%r[get_eval(me/##)])
-&URL_MATCHER me=^(http\:|https\:|ftp\:|ftps\:|telnet\:|telnets\:|ssh\:|www\.)[^ \"]+:@switch member(v(L_IGNORE),owner(%#))=0,@pemit me=GRAVYURLMATCH [owner(%#)] %0,{@@}
+&URL_MATCHER me=^(http\:|https\:|ftp\:|ftps\:|telnet\:|telnets\:|ssh\:|www\.)[^ \"]+:@switch orbool(regmatch(%0,https://www.yirp.org.*),member(v(L_IGNORE),owner(%#)))=0,@pemit me=GRAVYURLMATCH [owner(%#)] %0,{@@}
 @set me/URL_MATCHER = regexp
 @lock/UseLock me=!$*Mesozoic Records Dinosaur|!$*Killer Asteroid
 @Startup me=@wait 30=hangout
@@ -24,3 +24,5 @@
 @set me=VISUAL
 @set me=ROBOT
 @set me=COMMANDS
+
+
