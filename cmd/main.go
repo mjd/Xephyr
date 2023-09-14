@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -93,6 +94,39 @@ func (app *application) botSend(w telnet.Writer, data string) {
 	}
 }
 
+func (app *application) sendWeatherRequest(query string) (string, error) {
+	res, err := http.Get("https://wttr.in/" + query + "?0AT")
+
+	if err != nil {
+		app.errorLog.Printf("weather request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode > 299 {
+		app.errorLog.Printf("Weather request failed status code: %d", res.StatusCode)
+		return "", fmt.Errorf("weather request failed status code: %d", res.StatusCode)
+	}
+
+	if res.ContentLength < 10 {
+		app.errorLog.Printf("Weather request failed ContentLength: %d", res.ContentLength)
+		return "", fmt.Errorf("weather request failed ContentLength: %d", res.ContentLength)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		app.errorLog.Printf("Weather request failed ReadAll: %s", err)
+		return "", err
+	}
+
+	r := strings.NewReplacer("\n", "%r", "’", "'", "―", "-", "\\", "\\\\", "%", "\\%", ";", "\\;", "[", "\\[", "]", "\\]",
+		"{", "\\{", "}", "\\}")
+	result := r.Replace(string(body)) + "\n"
+	fmt.Println(result)
+
+	return result, nil
+}
+
 func (app *application) sendUrlToYirp(url string) (string, error) {
 	yirpRequest := YirpRequest{
 		ApiKey:  app.config.yirpapikey,
@@ -155,6 +189,29 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 	if matched {
 		command := "home\n"
 		return command, nil
+	}
+
+	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (\S+)"$`)
+	s := re.FindSubmatch([]byte(line))
+	fmt.Printf("%q\n", re.FindSubmatch([]byte(line)))
+
+	if s != nil {
+		if len(s) < 2 {
+			fmt.Println("GRAVYWEATHER wrong len")
+			return "", nil
+		} else {
+			query := url.QueryEscape(string(s[1]))
+			response, err := app.sendWeatherRequest(query)
+			if err != nil {
+				fmt.Println("GRAVYWEATHER request fail")
+				fmt.Println(err)
+
+				return "", err
+			}
+
+			command := "pose > " + response
+			return command, nil
+		}
 	}
 
 	return "", nil
