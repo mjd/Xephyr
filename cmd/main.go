@@ -94,39 +94,6 @@ func (app *application) botSend(w telnet.Writer, data string) {
 	}
 }
 
-func (app *application) sendWeatherRequestBig(query string) (string, error) {
-	res, err := http.Get("https://wttr.in/" + query + "?0AT")
-
-	if err != nil {
-		app.errorLog.Printf("weather request failed: %s", err)
-		return "", err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode > 299 {
-		app.errorLog.Printf("Weather request failed status code: %d", res.StatusCode)
-		return "", fmt.Errorf("weather request failed status code: %d", res.StatusCode)
-	}
-
-	if res.ContentLength < 10 {
-		app.errorLog.Printf("Weather request failed ContentLength: %d", res.ContentLength)
-		return "", fmt.Errorf("weather request failed ContentLength: %d", res.ContentLength)
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		app.errorLog.Printf("Weather request failed ReadAll: %s", err)
-		return "", err
-	}
-
-	r := strings.NewReplacer("\n", "%r", "’", "'", "―", "-", "\\", "\\\\", "%", "\\%", ";", "\\;", "[", "\\[", "]", "\\]",
-		"{", "\\{", "}", "\\}")
-	result := r.Replace(string(body)) + "\n"
-	fmt.Println(result)
-
-	return result, nil
-}
-
 func (app *application) sendWeatherRequest(query string) (string, error) {
 	res, err := http.Get("https://wttr.in/" + query + "?format=%l:+%C+%t+%h+%p+%w")
 
@@ -154,7 +121,7 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 
 	r := strings.NewReplacer("\n", "%r", "’", "'", "―", "-", "\\", "\\\\", "%", "\\%", ";", "\\;", "[", "\\[", "]", "\\]",
 		"{", "\\{", "}", "\\}")
-	result := "Weather report: " + r.Replace(string(body)) + "\n"
+	result := "Weather report: " + r.Replace(string(body)) + " https://wttr.in/" + query + "\n"
 	fmt.Println(result)
 
 	return result, nil
