@@ -128,6 +128,7 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 }
 
 func (app *application) sendUrlToYirp(url string) (string, error) {
+	app.errorLog.Printf("sendUrlToYirp url: %s\n", url)
 	yirpRequest := YirpRequest{
 		ApiKey:  app.config.yirpapikey,
 		LongUrl: url,
@@ -232,7 +233,7 @@ func (app *application) checkLineForUrls(line string) (string, error) {
 		if strings.HasPrefix(strings.ToLower(longUrl), "www") {
 			longUrl = "http://" + longUrl
 		}
-		u, err := url.ParseRequestURI(longUrl)
+		u, err := url.Parse(longUrl)
 		if err != nil {
 			return "", err
 		}
