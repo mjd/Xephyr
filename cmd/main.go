@@ -179,7 +179,24 @@ func (app *application) sendUrlToYirp(url string) (string, error) {
 }
 
 func (app *application) checkLineForRegexps(line string) (string, error) {
-	re := regexp.MustCompile(`\[.*\(#\d+\)\] .+ pages: hangout$`)
+	var userID string
+
+	re := regexp.MustCompile(`^\[.*\((#\d+)\)\]`)
+	userIDMatch := re.FindSubmatch([]byte(line))
+	if len(userIDMatch) < 2 {
+		return "", nil
+	}
+	userID = string(userIDMatch[1])
+
+	re = regexp.MustCompile(`(http\:|https\:|ftp\:|ftps\:|telnet\:|telnets\:|ssh\:|www\.)[^ \"]+`)
+
+	urls := re.FindAll([]byte(line), -1)
+	fmt.Printf("URL MATCHER: %q ** %q\n", userIDMatch, urls)
+	if len(urls) > 0 {
+		return app.processUrls(userID, urls)
+	}
+
+	re = regexp.MustCompile(`\[.*\(#\d+\)\] .+ pages: hangout$`)
 	matched := re.MatchString(line)
 	if matched {
 		command := "hangout\n"
@@ -218,37 +235,33 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 	return "", nil
 }
 
-func (app *application) checkLineForUrls(line string) (string, error) {
-	var urlFlag string = "GRAVYURLMATCH"
-	var delimeterRegex string = "[\\s]"
+func (app *application) processUrls(authorID string, urls [][]byte) (string, error) {
+	var botData string = ""
+	if len(urls) > 0 {
+		for _, urlBytes := range urls {
+			longUrl := string(urlBytes)
+			if strings.HasPrefix(strings.ToLower(longUrl), "www") {
+				longUrl = "http://" + longUrl
+			}
+			u, err := url.Parse(longUrl)
+			if err != nil {
+				return "", err
+			}
 
-	s := regexp.MustCompile(delimeterRegex).Split(line, -1)
-	if len(s) < 3 {
-		return "", nil
-	}
-
-	if s[0] == urlFlag && len(s) >= 3 {
-		authorID := s[1]
-		longUrl := s[2]
-		if strings.HasPrefix(strings.ToLower(longUrl), "www") {
-			longUrl = "http://" + longUrl
-		}
-		u, err := url.Parse(longUrl)
-		if err != nil {
-			return "", err
-		}
-
-		shortUrl, err := app.sendUrlToYirp(u.String())
-		if err == nil && shortUrl != "" {
-			botData := "add_url " + authorID + " " + shortUrl + " " + u.String() + "\n"
-			botData = botData + "@trigger me/TRIGGER_LAST_URL\n"
-			return botData, nil
+			shortUrl, err := app.sendUrlToYirp(u.String())
+			if err == nil && shortUrl != "" {
+				botData = botData + "add_url " + authorID + " " + shortUrl + " " + u.String() + "\n"
+				botData = botData + "@trigger me/TRIGGER_LAST_URL\n"
+			}
 		}
 	}
-	return "", nil
+	app.infoLog.Printf("botData: %s\n", botData)
+
+	return botData, nil
 }
 
 func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader) {
+	var command string = ""
 	c.app.infoLog.Printf("connect " + c.app.config.username + " <password>\n")
 	w.Write([]byte("connect " + c.app.config.username + " " + c.app.config.password + "\n"))
 
@@ -272,7 +285,6 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 			lineString := strings.TrimSpace(line.String())
 
 			c.app.infoLog.Println(lineString)
-			command, err := c.app.checkLineForUrls(lineString)
 			if command == "" {
 				command, err = c.app.checkLineForRegexps(lineString)
 			}
@@ -284,6 +296,7 @@ func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader)
 			if command != "" {
 				c.app.botSend(w, command)
 			}
+			command = ""
 			line.Reset()
 		}
 	}
