@@ -191,7 +191,6 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 	re = regexp.MustCompile(`(http\:|https\:|ftp\:|ftps\:|telnet\:|telnets\:|ssh\:|www\.)[^ \"]+`)
 
 	urls := re.FindAll([]byte(line), -1)
-	fmt.Printf("URL MATCHER: %q ** %q\n", userIDMatch, urls)
 	if len(urls) > 0 {
 		return app.processUrls(userID, urls)
 	}
@@ -211,7 +210,6 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 
 	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (\S+)"$`)
 	s := re.FindSubmatch([]byte(line))
-	fmt.Printf("%q\n", re.FindSubmatch([]byte(line)))
 
 	if s != nil {
 		if len(s) < 2 {
