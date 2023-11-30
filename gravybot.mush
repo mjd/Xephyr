@@ -1,29 +1,34 @@
-@lock Gravybot=*mjd
-@Desc Gravybot=A MUSHbot by mjd. I do Urls.%rMy Go code is https://github.com/mjd/Xephyr%rUsing the service at http://www.yirp.org for shortening Urls.%rWeather information is from https://wttr.in/.%r%b'ghelp' for help
-&LASTOFF Gravybot=Fri Nov 17 15:36:39 2023
-&DB Gravybot=#1818
-&GURL_ITEM Gravybot=[u(v(db)/URL_SHORT_%0)] -> [u(v(db)/URL_LONG_%0)] [name(u(v(db)/URL_DBREF_%0))([u(v(db)/URL_DBREF_%0)])]
-&CMD_GURL_MANY Gravybot=$gurl *:@pemit %#=u(FUNC_GURL_DRIVER,%0)
-&FUNC_REAL_URL_ID Gravybot=mod(add(u(v(db)/URL_MAX),sub(u(v(db)/URL_CURRENT),%0)),u(v(db)/URL_MAX))
-&FUNC_GURL_DRIVER Gravybot=Most Recent URLs:%r[setq(0,min(u(v(db)/URL_MAX),max(%0,1)))][iter(map(me/FUNC_REAL_URL_ID,lnum(sub(%q0,1),0)),u(GURL_ITEM,##),%b,%r)]
-&TRIGGER_LAST_URL Gravybot=pose > [u(v(db)/URL_SHORT_[u(v(db)/URL_CURRENT)])]
-&GHELP_1 Gravybot=[name(me)] is a bot made by [name(owner(me))]. Send him your feature requests.
-&GHELP_2 Gravybot=%bgurl - show the most recent Urls
-&GHELP_3 Gravybot=%bgurl <N> - show the most recent <N> Urls
-&CMD_GHELP Gravybot=$ghelp:@pemit %#=parse(lattr(me/GHELP_*),%r[get_eval(me/##)])
-@lock/UseLock Gravybot=!$*Mesozoic Records Dinosaur
-@Startup Gravybot=@wait 30={@pemit me=HANGOUT: [loc(#123)];hangout}
-&GHELP_10 Gravybot=%b%bp [name(me)]=home hangout to send me there
-@Akill Gravybot=@wait 5=hangout
-&L_IGNORE Gravybot=#1 #163
-&WEATHER_MATCHER Gravybot=^Gravybot, weather (\S)[^ \"]+@switch member(v(L_IGNORE),owner(%#))=0,@pemit me=GRAVYWEATHER [owner(%#)] %0,{@@}
-@set Gravybot/WEATHER_MATCHER = regexp
-@Amove Gravybot=@pemit me=[name(u(%#))(u%#)];@switch and(comp(loc(me),loc(#123)),u(AUTO_RETURN))=1,{hangout},{@@}
-&AUTO_RETURN Gravybot=0
-&GHELP_4 Gravybot=%b%bsay Gravybot weather <LOC> - show the weather for LOC (try an ICAO airport code!)
-@Sex Gravybot=Machine
-&CMD_GURL_TEN Gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
-@set Gravybot=MONITOR
-@set Gravybot=VISUAL
-@set Gravybot=ROBOT
-@set Gravybot=COMMANDS
+I don't see that here.
+@lock gravybot=*mjd
+@Desc gravybot=A MUSHbot by mjd. I do Urls.%rMy Go code is https://github.com/mjd/Xephyr%rUsing the service at http://www.yirp.org for shortening Urls.%rWeather information is from https://wttr.in/.%r%b'ghelp' for help
+&LASTOFF gravybot=Fri Nov 24 08:12:19 2023
+&DB gravybot=#1818
+&GURL_ITEM gravybot=[u(v(db)/URL_SHORT_%0)] -> [u(v(db)/URL_LONG_%0)] [name(u(v(db)/URL_DBREF_%0))([u(v(db)/URL_DBREF_%0)])]
+&CMD_GURL_MANY gravybot=$gurl *:@pemit %#=u(FUNC_GURL_DRIVER,%0)
+&FUNC_REAL_URL_ID gravybot=mod(add(u(v(db)/URL_MAX),sub(u(v(db)/URL_CURRENT),%0)),u(v(db)/URL_MAX))
+&FUNC_GURL_DRIVER gravybot=Most Recent URLs:%r[setq(0,min(u(v(db)/URL_MAX),max(%0,1)))][iter(map(me/FUNC_REAL_URL_ID,lnum(sub(%q0,1),0)),u(GURL_ITEM,##),%b,%r)]
+&TRIGGER_LAST_URL gravybot=pose > [u(v(db)/URL_SHORT_[u(v(db)/URL_CURRENT)])]
+&GHELP_1 gravybot=Send [name(owner(me))] your [name(me)] ideas.
+&GHELP_2 gravybot=%bgurl-show recent Urls.
+&GHELP_3 gravybot=%bgurl <N>-show <N> recent Urls.
+&CMD_GHELP gravybot=$ghelp:@pemit %#=parse(lattr(me/GHELP_*),%r[get_eval(me/##)])
+@lock/UseLock gravybot=!$*Mesozoic Records Dinosaur
+@Startup gravybot=@wait 30={@pemit me=HANGOUT: [loc(#123)];hangout};@trigger me/DOING_RANDOM
+&GHELP_10 gravybot=%b%bp [name(me)]=home or hangout
+@Akill gravybot=@wait 5=hangout
+&L_IGNORE gravybot=#1 #163
+&WEATHER_MATCHER gravybot=^Gravybot, weather (\S)[^ \"]+@switch member(v(L_IGNORE),owner(%#))=0,@pemit me=GRAVYWEATHER [owner(%#)] %0,{@@}
+@set gravybot/WEATHER_MATCHER = regexp
+@Amove gravybot=@pemit me=[name(%#)(u%#)];@switch and(comp(loc(me),loc(#123)),comp(off,u(AUTO_RETURN)))=1,{hangout},{@@}
+&GHELP_4 gravybot=%b%bsay Gravybot weather <ICAO>
+@Sex gravybot=Machine
+&CMD_GURL_TEN gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
+&GHELP_5 gravybot=%bgautoreturn on|off-[name(me)] autoreturn
+&CMD_GAUTORETURN gravybot=$gautoreturn *:@pemit %#=[name(me)] autoreturn set to [setr(0,switch(%0,on,on,1,on,off))];&AUTO_RETURN me=%q0
+&AUTO_RETURN gravybot=on
+&DOING_RANDOM gravybot=@doing [get_eval(me/[first(shuffle(lattr(me/GHELP_*)))])]
+@Aconnect gravybot=@tr me/startup
+@set gravybot=MONITOR
+@set gravybot=VISUAL
+@set gravybot=ROBOT
+@set gravybot=COMMANDS
