@@ -103,6 +103,12 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == 404 {
+		result := "Weather error: " + query + " not found. Try using an ICAO code from https://airportcodes.aero/icao\n"
+		fmt.Println(result)
+		return result, nil
+	}
+
 	if res.StatusCode > 299 {
 		app.errorLog.Printf("Weather request failed status code: %d", res.StatusCode)
 		return "", fmt.Errorf("weather request failed status code: %d", res.StatusCode)
