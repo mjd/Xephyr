@@ -204,13 +204,13 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 	re = regexp.MustCompile(`\[.*\(#\d+\)\] .+ pages: hangout$`)
 	matched := re.MatchString(line)
 	if matched {
-		command := "hangout\n"
+		command := "@dolist me={gautoreturn on;hangout}\n"
 		return command, nil
 	}
 	re = regexp.MustCompile(`\[.*\(#\d+\)\] .+ pages: home$`)
 	matched = re.MatchString(line)
 	if matched {
-		command := "home\n"
+		command := "@dolist me={gautoreturn off;home}\n"
 		return command, nil
 	}
 
