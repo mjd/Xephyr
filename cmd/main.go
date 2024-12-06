@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
+	"strconv"
 	"io"
 	"log"
 	"net/http"
@@ -110,8 +110,9 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 	}
 
 	if res.StatusCode > 299 {
-		app.errorLog.Printf("Weather request failed status code: %d", res.StatusCode)
-		return "", fmt.Errorf("weather request failed status code: %d", res.StatusCode)
+		result := "Weather error: API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
+		fmt.Println(result)
+		return result, nil
 	}
 
 	if res.ContentLength < 10 {
@@ -170,7 +171,8 @@ func (app *application) sendUrlToYirp(url string) (string, error) {
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
 		app.errorLog.Println(res.Status)
 
-		return "", errors.New(res.Status)
+		result := "Yirp error: URL API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
+		return result, nil
 	}
 
 	var yirpResponse YirpResponse
