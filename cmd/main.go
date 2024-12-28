@@ -216,7 +216,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 		return command, nil
 	}
 
-	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (\S+)"$`)
+	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (.+)"$`)
 	s := re.FindSubmatch([]byte(line))
 
 	if s != nil {
@@ -230,7 +230,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				fmt.Println("GRAVYWEATHER request fail")
 				fmt.Println(err)
 
-				return "", err
+				response = "Error: " + string(err.Error())
 			}
 
 			command := "pose > " + response
