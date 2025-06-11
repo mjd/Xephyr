@@ -230,10 +230,10 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				fmt.Println("GRAVYWEATHER request fail")
 				fmt.Println(err)
 
-				response = "Error: " + string(err.Error())
+				response = "Error: weather api call failed."
 			}
 
-			command := "pose > " + response
+			command := "pose > " + response + "\n"
 			return command, nil
 		}
 	}
