@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"strconv"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,7 +94,7 @@ func (app *application) botSend(w telnet.Writer, data string) {
 	}
 }
 
-func (app *application) sendWeatherRequest(query string) (string, error) {
+func (app *application) sendWeatherRequestOLD(query string) (string, error) {
 	res, err := http.Get("https://wttr.in/" + query + "?format=%l:+%C+%t+%h+%p+%w")
 
 	if err != nil {
@@ -104,7 +104,7 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode == 404 {
-		result := "Weather error: " + query + " not found. Try using an ICAO code from https://airportcodes.aero/icao\n"
+		result := "Weather error: " + query + " not found. Try using a City State or City Country pair.\n"
 		fmt.Println(result)
 		return result, nil
 	}
@@ -129,6 +129,125 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 	r := strings.NewReplacer("\n", "%r", "’", "'", "―", "-", "\\", "\\\\", "%", "\\%", ";", "\\;", "[", "\\[", "]", "\\]",
 		"{", "\\{", "}", "\\}")
 	result := "Weather report: " + r.Replace(string(body)) + " https://wttr.in/" + query + "\n"
+	fmt.Println(result)
+
+	return result, nil
+}
+
+type WeatherAPIResponse struct {
+
+	// defining struct variables
+	Location struct {
+		Name    string `json:"name"`
+		Region  string `json:"region"`
+		Country string `json:"country"`
+		Lat     string `json:"lat"`
+		Lon     string `json:"lon"`
+	} `json:"location"`
+
+	Current struct {
+		Last_updated string  `json:"last_updated"`
+		Temp_c       float32 `json:"temp_c"`
+		Temp_f       float32 `json:"temp_f"`
+		Condition    struct {
+			Text     string  `json:"text"`
+			Wind_mph float32 `json:"wind_mph"`
+			Wind_kph float32 `json:"wind_kph"`
+			Wind_dir string  `json:"wind_dir"`
+			Humidity float32 `json:"humidity"`
+		} `json:"condition"`
+	} `json:"current"`
+
+	// 		location: {
+	// name: "Greece",
+	// region: "New York",
+	// country: "United States of America",
+	// lat: 43.2097,
+	// lon: -77.6933,
+	// tz_id: "America/New_York",
+	// localtime_epoch: 1749679031,
+	// localtime: "2025-06-11 17:57"
+	// },
+	// current: {
+	// last_updated_epoch: 1749678300,
+	// last_updated: "2025-06-11 17:45",
+	// temp_c: 26.1,
+	// temp_f: 79,
+	// is_day: 1,
+	// condition: {
+	// text: "Partly cloudy",
+	// icon: "//cdn.weatherapi.com/weather/64x64/day/116.png",
+	// code: 1003
+	// },
+	// wind_mph: 14.3,
+	// wind_kph: 23,
+	// wind_degree: 250,
+	// wind_dir: "WSW",
+	// pressure_mb: 1015,
+	// pressure_in: 29.96,
+	// precip_mm: 0,
+	// precip_in: 0,
+	// humidity: 38,
+	// cloud: 75,
+	// feelslike_c: 26.9,
+	// feelslike_f: 80.4,
+	// windchill_c: 25.6,
+	// windchill_f: 78.2,
+	// heatindex_c: 26.6,
+	// heatindex_f: 79.9,
+	// dewpoint_c: 15.9,
+	// dewpoint_f: 60.5,
+	// vis_km: 16,
+	// vis_miles: 9,
+	// uv: 2.9,
+	// gust_mph: 23.1,
+	// gust_kph: 37.2
+	// }
+
+}
+
+func (app *application) sendWeatherRequestNEW(query string) (string, error) {
+	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=8a6c5e02dcb040d4b12211424251106&q=" + query + "&aqi=no")
+
+	// https://api.weatherapi.com/v1/current.json?key=8a6c5e02dcb040d4b12211424251106&q=greece ny&aqi=no
+
+	if err != nil {
+		app.errorLog.Printf("weather request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 404 {
+		result := "Weather error: " + query + " not found. Try using a city state or city country pair.\n"
+		fmt.Println(result)
+		return result, nil
+	}
+
+	if res.StatusCode > 299 {
+		result := "Weather error: API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
+		fmt.Println(result)
+		return result, nil
+	}
+
+	if res.ContentLength < 10 {
+		app.errorLog.Printf("Weather request failed ContentLength: %d", res.ContentLength)
+		return "", fmt.Errorf("weather request failed ContentLength: %d", res.ContentLength)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		app.errorLog.Printf("Weather request failed ReadAll: %s", err)
+		return "", err
+	}
+
+	var weatherResponse WeatherAPIResponse
+	err = json.Unmarshal(body, &weatherResponse)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	fmt.Printf("%+v", weatherResponse)
+
+	result := string(body)
 	fmt.Println(result)
 
 	return result, nil
@@ -225,7 +344,8 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 			return "", nil
 		} else {
 			query := url.QueryEscape(string(s[1]))
-			response, err := app.sendWeatherRequest(query)
+
+			response, err := app.sendWeatherRequestNEW(query)
 			if err != nil {
 				fmt.Println("GRAVYWEATHER request fail")
 				fmt.Println(err)
@@ -233,7 +353,17 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				response = "Error: " + string(err.Error())
 			}
 
-			command := "pose > " + response
+			fmt.Println("GRAVYWEATHERNEW: pose > " + response)
+
+			responseOLD, err := app.sendWeatherRequestOLD(query)
+			if err != nil {
+				fmt.Println("GRAVYWEATHEROLD request fail")
+				fmt.Println(err)
+
+				responseOLD = "Error: " + string(err.Error())
+			}
+
+			command := "pose > " + responseOLD
 			return command, nil
 		}
 	}
