@@ -17,7 +17,7 @@
 @Akill *gravybot=@wait 5=hangout
 &L_IGNORE *gravybot=#1 #163
 @Amove *gravybot=@pemit me=[name(%#)(u%#)];@switch and(comp(loc(me),loc(#123)),comp(off,u(AUTO_RETURN)))=1,{hangout},{@@}
-&GHELP_4 *gravybot=%b%bsay Gravybot weather <ICAO>
+&GHELP_4 *gravybot=%b%bsay Gravybot weather <location>
 @Sex *gravybot=Machine
 &CMD_GURL_TEN *gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
 &GHELP_5 *gravybot=%b%b%b%b&WEATHER_LOCATION me=<your default location>;@set me/WEATHER_LOCATION=vis
