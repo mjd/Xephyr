@@ -24,6 +24,7 @@ type config struct {
 	yirpapikey  string
 	username    string
 	password    string
+	weatherapikey string
 }
 
 type application struct {
@@ -46,6 +47,7 @@ func main() {
 	cfg.username = os.Getenv("BOT_USERNAME")
 	cfg.password = os.Getenv("BOT_PASSWORD")
 	cfg.yirpapikey = os.Getenv("YIRP_APIKEY")
+	cfg.weatherapikey = os.Getenv("WEATHER_APIKEY")
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -157,8 +159,8 @@ type WeatherAPIResponse struct {
 	} `json:"current"`
 }
 
-func (app *application) sendWeatherRequestNEW(query string) (string, error) {
-	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=8a6c5e02dcb040d4b12211424251106&q=" + query + "&aqi=no")
+func (app *application) sendWeatherRequest(query string) (string, error) {
+	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=" + app.config.weatherapikey + "&q=" + query + "&aqi=no")
 
 	if err != nil {
 		app.errorLog.Printf("weather request failed: %s", err)
@@ -294,7 +296,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 		} else {
 			query := url.QueryEscape(string(s[1]))
 
-			response, err := app.sendWeatherRequestNEW(query)
+			response, err := app.sendWeatherRequest(query)
 			if err != nil {
 				fmt.Println("GRAVYWEATHER request fail")
 				fmt.Println(err)

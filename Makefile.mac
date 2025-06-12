@@ -1,7 +1,7 @@
 BOT_USERNAME=
 BOT_PASSWORD=
 YIRP_APIKEY=
-
+WEATHER_APIKEY=
 
 ## build: builds all binaries
 build: clean build_bot
@@ -26,7 +26,7 @@ start: start_bot
 ## start_bot: starts the bot
 start_bot: build_bot
 	@echo "Starting the bot..."
-	@env BOT_USERNAME=${BOT_USERNAME} BOT_PASSWORD=${BOT_PASSWORD} YIRP_APIKEY=${YIRP_APIKEY} ./dist/Xephyr &
+	@env BOT_USERNAME=${BOT_USERNAME} BOT_PASSWORD=${BOT_PASSWORD} YIRP_APIKEY=${YIRP_APIKEY} WEATHER_APIKEY=${WEATHER_APIKEY} ./dist/Xephyr &
 	@echo "Bot running!"
 
 ## stop: stops the bot
