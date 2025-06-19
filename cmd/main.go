@@ -193,13 +193,15 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 	}
 
 	var locationRegion string
-	if ("United States of America" == weatherResponse.Location.Country) {
+	var result string
+	
+	if (strings.HasPrefix(weatherResponse.Location.Country, "United States of America") || strings.HasPrefix(weatherResponse.Location.Country, "USA")) {
 		locationRegion = weatherResponse.Location.Region
+		result = fmt.Sprintf("Weather %v, %v: %v %.1fF %.1f%%%% %.1fmph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir)
 	} else {
 		locationRegion = weatherResponse.Location.Country
+		result = fmt.Sprintf("Weather %v, %v: %v %.1fC %.1f%%%% %.1fkph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_c, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_kph, weatherResponse.Current.Wind_dir)
 	}
-
-	result := fmt.Sprintf("Weather %v, %v: %v %.1fF %.1f%%%% %.1fmph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir)
 
 	return result, nil
 }
