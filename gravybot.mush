@@ -10,7 +10,7 @@
 &GHELP_1 *gravybot=Send [name(owner(me))] your [name(me)] ideas.
 &GHELP_2 *gravybot=%bgurl-show recent Urls.
 &GHELP_3 *gravybot=%bgurl <N>-show <N> recent Urls.
-&CMD_GHELP *gravybot=$ghelp:@pemit %#=parse(lattr(me/GHELP_*),%r[get_eval(me/##)])
+&CMD_GHELP *gravybot=$ghelp:@pemit %#=parse(sort(lattr(me/GHELP_*)),%r[get_eval(me/##)])
 @lock/UseLock *gravybot=!$*Mesozoic Records Dinosaur
 @Startup *gravybot=@wait 30={@pemit me=HANGOUT: [loc(#123)];hangout};@trigger me/DOING_RANDOM
 &GHELP_10 *gravybot=%b%bp [name(me)]=home or hangout
