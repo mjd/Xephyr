@@ -20,7 +20,8 @@
 &GHELP_4 *gravybot=%b%bsay Gravybot weather <location>
 @Sex *gravybot=Machine
 &CMD_GURL_TEN *gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
-&GHELP_5 *gravybot=%b%b%b%b&WEATHER_LOCATION me=<your default location>;@set me/WEATHER_LOCATION=vis
+&GHELP_5 *gravybot=%b%b%b%b&WEATHER_LOCATION me=<your default location>
+&GHELP_6 *gravybot=%b%b%b%b@set me/WEATHER_LOCATION=vis
 &CMD_GAUTORETURN *gravybot=$gautoreturn *:@pemit %#=[name(me)] autoreturn set to [setr(0,switch(%0,on,on,1,on,off))];&AUTO_RETURN me=%q0
 &AUTO_RETURN *gravybot=off
 &DOING_RANDOM *gravybot=@doing [get_eval(me/[first(shuffle(lattr(me/GHELP_*)))])]
