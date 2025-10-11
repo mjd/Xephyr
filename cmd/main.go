@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,11 +20,11 @@ import (
 )
 
 type config struct {
-	srvAddr     string
-	yirpAPIAddr string
-	yirpapikey  string
-	username    string
-	password    string
+	srvAddr       string
+	yirpAPIAddr   string
+	yirpapikey    string
+	username      string
+	password      string
 	weatherapikey string
 }
 
@@ -96,51 +97,11 @@ func (app *application) botSend(w telnet.Writer, data string) {
 	}
 }
 
-func (app *application) sendWeatherRequestOLD(query string) (string, error) {
-	res, err := http.Get("https://wttr.in/" + query + "?format=%l:+%C+%t+%h+%p+%w")
-
-	if err != nil {
-		app.errorLog.Printf("weather request failed: %s", err)
-		return "", err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode == 404 {
-		result := "Weather error: " + query + " not found. Try using a City State or City Country pair.\n"
-		fmt.Println(result)
-		return result, nil
-	}
-
-	if res.StatusCode > 299 {
-		result := "Weather error: API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
-		fmt.Println(result)
-		return result, nil
-	}
-
-	if res.ContentLength < 10 {
-		app.errorLog.Printf("Weather request failed ContentLength: %d", res.ContentLength)
-		return "", fmt.Errorf("weather request failed ContentLength: %d", res.ContentLength)
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		app.errorLog.Printf("Weather request failed ReadAll: %s", err)
-		return "", err
-	}
-
-	r := strings.NewReplacer("\n", "%r", "’", "'", "―", "-", "\\", "\\\\", "%", "\\%", ";", "\\;", "[", "\\[", "]", "\\]",
-		"{", "\\{", "}", "\\}")
-	result := "Weather report: " + r.Replace(string(body)) + " https://wttr.in/" + query + "\n"
-	fmt.Println(result)
-
-	return result, nil
-}
-
 type WeatherAPIResponse struct {
 	Location struct {
-		Name    string `json:"name"`
-		Region  string `json:"region"`
-		Country string `json:"country"`
+		Name    string  `json:"name"`
+		Region  string  `json:"region"`
+		Country string  `json:"country"`
 		Lat     float64 `json:"lat"`
 		Lon     float64 `json:"lon"`
 	} `json:"location"`
@@ -150,13 +111,69 @@ type WeatherAPIResponse struct {
 		Temp_c       float64 `json:"temp_c"`
 		Temp_f       float64 `json:"temp_f"`
 		Condition    struct {
-			Text     string  `json:"text"`
+			Text string `json:"text"`
 		} `json:"condition"`
 		Wind_mph float64 `json:"wind_mph"`
 		Wind_kph float64 `json:"wind_kph"`
 		Wind_dir string  `json:"wind_dir"`
 		Humidity float64 `json:"humidity"`
 	} `json:"current"`
+}
+
+func (app *application) translateText(sourceLang, targetLang, text string) (string, error) {
+	// Build the Google Translate API URL
+	baseURL := "https://translate.googleapis.com/translate_a/single"
+	params := url.Values{}
+	params.Add("client", "gtx")
+	params.Add("sl", sourceLang)
+	params.Add("tl", targetLang)
+	params.Add("dt", "t")
+	params.Add("q", text)
+
+	fullURL := baseURL + "?" + params.Encode()
+
+	// Make the HTTP request
+	res, err := http.Get(fullURL)
+	if err != nil {
+		app.errorLog.Printf("translation request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode > 299 {
+		result := "Translation error: API returned code: " + strconv.Itoa(res.StatusCode)
+		app.errorLog.Println(result)
+		return result, nil
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		app.errorLog.Printf("Translation request failed ReadAll: %s", err)
+		return "", err
+	}
+
+	// Parse the JSON response
+	// The response is a nested array structure: [[[translated_text, original_text, ...]]]
+	var response []interface{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		app.errorLog.Printf("Translation response parse failed: %s", err)
+		return "", err
+	}
+
+	// Extract the translated text
+	if len(response) > 0 {
+		if translations, ok := response[0].([]interface{}); ok && len(translations) > 0 {
+			if translation, ok := translations[0].([]interface{}); ok && len(translation) > 0 {
+				if translatedText, ok := translation[0].(string); ok {
+					return translatedText, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("unable to parse translation response")
 }
 
 func (app *application) sendWeatherRequest(query string) (string, error) {
@@ -194,8 +211,8 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 
 	var locationRegion string
 	var result string
-	
-	if (strings.HasPrefix(weatherResponse.Location.Country, "United States of America") || strings.HasPrefix(weatherResponse.Location.Country, "USA")) {
+
+	if strings.HasPrefix(weatherResponse.Location.Country, "United States of America") || strings.HasPrefix(weatherResponse.Location.Country, "USA") {
 		locationRegion = weatherResponse.Location.Region
 		result = fmt.Sprintf("Weather %v, %v: %v %.1fF %.1f%%%% %.1fmph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir)
 	} else {
@@ -244,7 +261,7 @@ func (app *application) sendUrlToYirp(url string) (string, error) {
 		app.errorLog.Println(res.Status)
 
 		result := "Yirp error: URL API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
-		return result, nil
+		return "", errors.New(result)
 	}
 
 	var yirpResponse YirpResponse
@@ -288,8 +305,32 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 		return command, nil
 	}
 
-	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (.+)"$`)
+	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? translate (\S+) (\S+) (.*)"$`)
 	s := re.FindSubmatch([]byte(line))
+	if s != nil {
+		if len(s) != 4 {
+			fmt.Println("GRAVYTRANSLATE wrong len")
+			return "", nil
+		} else {
+			sourceLang := string(s[1])
+			targetLang := string(s[2])
+			textToTranslate := string(s[3])
+
+			translatedText, err := app.translateText(sourceLang, targetLang, textToTranslate)
+			if err != nil {
+				fmt.Println("GRAVYTRANSLATE request fail")
+				fmt.Println(err)
+				translatedText = "Error: translation failed."
+			}
+
+			command := "pose > t: " + translatedText + "\n"
+
+			return command, nil
+		}
+	}
+
+	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "Gravybot\,? weather (.+)"$`)
+	s = re.FindSubmatch([]byte(line))
 
 	if s != nil {
 		if len(s) < 2 {
@@ -305,14 +346,6 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 
 				response = "Error: weather api call failed."
 			}
-
-//			responseOLD, err := app.sendWeatherRequestOLD(query)
-//			if err != nil {
-//				fmt.Println("GRAVYWEATHEROLD request fail")
-//				fmt.Println(err)
-//
-//				responseOLD = "Error: " + string(err.Error())
-//			}
 
 			command := "pose > " + response + "\n"
 			return command, nil
