@@ -323,7 +323,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				translatedText = "Error: translation failed."
 			}
 
-			command := "pose > T: " + translatedText + "\n"
+			command := "pose T> " + translatedText + "\n"
 
 			return command, nil
 		}
@@ -347,7 +347,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				response = "Error: weather api call failed."
 			}
 
-			command := "pose > W: " + response + "\n"
+			command := "pose W> " + response + "\n"
 			return command, nil
 		}
 	}
