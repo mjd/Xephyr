@@ -1,0 +1,24 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: mushbot
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /home/mushbot/prod
+            git pull
+            docker compose down
+            docker compose build
+            docker compose up -d
+            docker compose logs --tail=20
