@@ -17,7 +17,11 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           script: |
             cd /home/mushbot/prod
-            git pull
+            if [ -d ".git" ]; then
+              git pull
+            else
+              git clone https://github.com/mjd/Xephyr.git .
+            fi
             docker compose down
             docker compose build
             docker compose up -d
