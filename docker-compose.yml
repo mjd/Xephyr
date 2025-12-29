@@ -1,0 +1,17 @@
+services:
+  xephyr:
+    build: .
+    container_name: xephyr-bot
+    restart: unless-stopped
+    environment:
+      - BOT_USERNAME=${BOT_USERNAME}
+      - BOT_PASSWORD=${BOT_PASSWORD}
+      - YIRP_APIKEY=${YIRP_APIKEY}
+      - WEATHER_APIKEY=${WEATHER_APIKEY}
+    networks:
+      - xephyr
+
+networks:
+  xephyr:
+    name: xephyr
+    driver: bridge
