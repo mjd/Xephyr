@@ -26,6 +26,7 @@ type config struct {
 	username      string
 	password      string
 	weatherapikey string
+	finnhubapikey string
 }
 
 type application struct {
@@ -49,6 +50,7 @@ func main() {
 	cfg.password = os.Getenv("BOT_PASSWORD")
 	cfg.yirpapikey = os.Getenv("YIRP_APIKEY")
 	cfg.weatherapikey = os.Getenv("WEATHER_APIKEY")
+	cfg.finnhubapikey = os.Getenv("FINNHUB_APIKEY")
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -118,6 +120,25 @@ type WeatherAPIResponse struct {
 		Wind_dir string  `json:"wind_dir"`
 		Humidity float64 `json:"humidity"`
 	} `json:"current"`
+}
+
+type FinnhubQuoteResponse struct {
+	C  float64 `json:"c"`  // Current price
+	D  float64 `json:"d"`  // Change
+	Dp float64 `json:"dp"` // Percent change
+	H  float64 `json:"h"`  // High price of the day
+	L  float64 `json:"l"`  // Low price of the day
+	O  float64 `json:"o"`  // Open price of the day
+	Pc float64 `json:"pc"` // Previous close price
+}
+
+type FinnhubSearchResponse struct {
+	Count  int `json:"count"`
+	Result []struct {
+		Description string `json:"description"`
+		Symbol      string `json:"symbol"`
+		Type        string `json:"type"`
+	} `json:"result"`
 }
 
 func (app *application) translateText(sourceLang, targetLang, text string) (string, error) {
@@ -220,6 +241,91 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 		result = fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_c, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_kph, weatherResponse.Current.Wind_dir)
 	}
 
+	return result, nil
+}
+
+func (app *application) getStockQuote(query string) (string, error) {
+	query = strings.TrimSpace(query)
+	symbol := strings.ToUpper(query)
+	companyName := ""
+
+	// If query doesn't look like a ticker symbol, search for it first
+	if len(query) > 5 || strings.Contains(query, " ") {
+		searchURL := fmt.Sprintf("https://finnhub.io/api/v1/search?q=%s&token=%s",
+			url.QueryEscape(query), app.config.finnhubapikey)
+
+		res, err := http.Get(searchURL)
+		if err != nil {
+			app.errorLog.Printf("stock search request failed: %s", err)
+			return "", err
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != 200 {
+			return fmt.Sprintf("Stock error: API returned code %d\n", res.StatusCode), nil
+		}
+
+		var searchResponse FinnhubSearchResponse
+		if err := json.NewDecoder(res.Body).Decode(&searchResponse); err != nil {
+			app.errorLog.Printf("stock search parse failed: %s", err)
+			return "", err
+		}
+
+		if searchResponse.Count == 0 || len(searchResponse.Result) == 0 {
+			return fmt.Sprintf("Stock error: no results found for '%s'\n", query), nil
+		}
+
+		// Use the first result
+		symbol = searchResponse.Result[0].Symbol
+		companyName = searchResponse.Result[0].Description
+	}
+
+	// Get the quote
+	quoteURL := fmt.Sprintf("https://finnhub.io/api/v1/quote?symbol=%s&token=%s",
+		symbol, app.config.finnhubapikey)
+
+	res, err := http.Get(quoteURL)
+	if err != nil {
+		app.errorLog.Printf("stock quote request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		return fmt.Sprintf("Stock error: API returned code %d\n", res.StatusCode), nil
+	}
+
+	var quoteResponse FinnhubQuoteResponse
+	if err := json.NewDecoder(res.Body).Decode(&quoteResponse); err != nil {
+		app.errorLog.Printf("stock quote parse failed: %s", err)
+		return "", err
+	}
+
+	if quoteResponse.C == 0 {
+		return fmt.Sprintf("Stock error: no quote found for '%s'\n", symbol), nil
+	}
+
+	// If we didn't get company name from search, fetch it via profile
+	if companyName == "" {
+		profileURL := fmt.Sprintf("https://finnhub.io/api/v1/stock/profile2?symbol=%s&token=%s",
+			symbol, app.config.finnhubapikey)
+		res, err := http.Get(profileURL)
+		if err == nil {
+			defer res.Body.Close()
+			var profile struct {
+				Name string `json:"name"`
+			}
+			if json.NewDecoder(res.Body).Decode(&profile) == nil && profile.Name != "" {
+				companyName = profile.Name
+			}
+		}
+	}
+
+	if companyName == "" {
+		companyName = symbol
+	}
+
+	result := fmt.Sprintf("%s(%s): $%.2f\n", symbol, companyName, quoteResponse.C)
 	return result, nil
 }
 
@@ -348,6 +454,29 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 			}
 
 			command := "pose W> " + response + "\n"
+			return command, nil
+		}
+	}
+
+	re = regexp.MustCompile(`(?i)\[.*\(#\d+\)\] .+ says "(gbs|Gravybot\,? stock) (.+)"$`)
+	s = re.FindSubmatch([]byte(line))
+
+	if s != nil {
+		if len(s) < 3 {
+			fmt.Println("GBS wrong len")
+			return "", nil
+		} else {
+			query := string(s[2])
+
+			response, err := app.getStockQuote(query)
+			if err != nil {
+				fmt.Println("GBS request fail")
+				fmt.Println(err)
+
+				response = "Error: stock quote api call failed."
+			}
+
+			command := "pose S> " + response + "\n"
 			return command, nil
 		}
 	}
