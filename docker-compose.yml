@@ -8,6 +8,7 @@ services:
       - BOT_PASSWORD=${BOT_PASSWORD}
       - YIRP_APIKEY=${YIRP_APIKEY}
       - WEATHER_APIKEY=${WEATHER_APIKEY}
+      - FINNHUB_APIKEY=${FINNHUB_APIKEY}
     networks:
       - xephyr
 
