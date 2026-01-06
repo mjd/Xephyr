@@ -32,6 +32,7 @@
 &WEATHER_NONE *gravybot=^* says "gravybot weather":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%#/WEATHER_LOCATION,dino)]"
 &TRANSLATE_SHORT *gravybot=^* says "gbt *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot translate %1"
 &GHELP_7 *gravybot=%b%bsay Gravybot translate <source language code> <target language code> <text>
+&GHELP_8 *gravybot=%b%bsay Gravybot stock <company or ticker>
 &GHELP_9 *gravybot=%bgautoreturn on|off-[name(me)] autoreturn
 @set *gravybot=MONITOR
 @set *gravybot=VISUAL
