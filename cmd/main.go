@@ -325,7 +325,16 @@ func (app *application) getStockQuote(query string) (string, error) {
 		companyName = symbol
 	}
 
-	result := fmt.Sprintf("%s(%s): $%.2f\n", symbol, companyName, quoteResponse.C)
+	// Format change with + or - sign
+	changeSign := ""
+	if quoteResponse.D >= 0 {
+		changeSign = "+"
+	}
+
+	result := fmt.Sprintf("%s(%s): $%.2f %s%.2f (%s%.2f%%)\n",
+		symbol, companyName, quoteResponse.C,
+		changeSign, quoteResponse.D,
+		changeSign, quoteResponse.Dp)
 	return result, nil
 }
 
