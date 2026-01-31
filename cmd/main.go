@@ -149,6 +149,7 @@ func (app *application) translateText(sourceLang, targetLang, text string) (stri
 	params.Add("sl", sourceLang)
 	params.Add("tl", targetLang)
 	params.Add("dt", "t")
+	params.Add("dt", "rm") // Also get romanization
 	params.Add("q", text)
 
 	fullURL := baseURL + "?" + params.Encode()
@@ -184,17 +185,41 @@ func (app *application) translateText(sourceLang, targetLang, text string) (stri
 	}
 
 	// Extract the translated text
+	var translatedText string
 	if len(response) > 0 {
 		if translations, ok := response[0].([]interface{}); ok && len(translations) > 0 {
 			if translation, ok := translations[0].([]interface{}); ok && len(translation) > 0 {
-				if translatedText, ok := translation[0].(string); ok {
-					return translatedText, nil
+				if text, ok := translation[0].(string); ok {
+					translatedText = text
 				}
 			}
 		}
 	}
 
-	return "", fmt.Errorf("unable to parse translation response")
+	if translatedText == "" {
+		return "", fmt.Errorf("unable to parse translation response")
+	}
+
+	// Extract romanization of the translated text (if available)
+	// Romanization is at response[0][1][2]
+	var romanization string
+	if len(response) > 0 {
+		if translations, ok := response[0].([]interface{}); ok && len(translations) > 1 {
+			if romArray, ok := translations[1].([]interface{}); ok && len(romArray) > 2 {
+				if rom, ok := romArray[2].(string); ok && rom != "" {
+					romanization = rom
+				}
+			}
+		}
+	}
+
+	// If romanization exists and differs from the translated text, include it
+	// Use \ to escape brackets for MUSH
+	if romanization != "" && romanization != translatedText {
+		return translatedText + " \\[" + romanization + "\\]", nil
+	}
+
+	return translatedText, nil
 }
 
 func (app *application) sendWeatherRequest(query string) (string, error) {
