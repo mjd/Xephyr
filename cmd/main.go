@@ -477,18 +477,28 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 			fmt.Println("GRAVYWEATHER wrong len")
 			return "", nil
 		} else {
-			query := url.QueryEscape(string(s[1]))
+			locations := strings.Split(string(s[1]), ",")
+			if len(locations) > 5 {
+				locations = locations[:5]
+			}
+			var commands []string
+			for _, loc := range locations {
+				loc = strings.TrimSpace(loc)
+				if loc == "" {
+					continue
+				}
+				query := url.QueryEscape(loc)
 
-			response, err := app.sendWeatherRequest(query)
-			if err != nil {
-				fmt.Println("GRAVYWEATHER request fail")
-				fmt.Println(err)
-
-				response = "Error: weather api call failed."
+				response, err := app.sendWeatherRequest(query)
+				if err != nil {
+					fmt.Println("GRAVYWEATHER request fail")
+					fmt.Println(err)
+					response = "Error: weather api call failed.\n"
+				}
+				commands = append(commands, "pose W> "+response)
 			}
 
-			command := "pose W> " + response + "\n"
-			return command, nil
+			return strings.Join(commands, ""), nil
 		}
 	}
 
