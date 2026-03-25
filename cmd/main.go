@@ -510,18 +510,27 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 			fmt.Println("GBS wrong len")
 			return "", nil
 		} else {
-			query := string(s[2])
+			symbols := strings.Split(string(s[2]), ",")
+			if len(symbols) > 5 {
+				symbols = symbols[:5]
+			}
+			var commands []string
+			for _, sym := range symbols {
+				sym = strings.TrimSpace(sym)
+				if sym == "" {
+					continue
+				}
 
-			response, err := app.getStockQuote(query)
-			if err != nil {
-				fmt.Println("GBS request fail")
-				fmt.Println(err)
-
-				response = "Error: stock quote api call failed."
+				response, err := app.getStockQuote(sym)
+				if err != nil {
+					fmt.Println("GBS request fail")
+					fmt.Println(err)
+					response = "Error: stock quote api call failed.\n"
+				}
+				commands = append(commands, "pose S> "+response)
 			}
 
-			command := "pose S> " + response + "\n"
-			return command, nil
+			return strings.Join(commands, ""), nil
 		}
 	}
 
