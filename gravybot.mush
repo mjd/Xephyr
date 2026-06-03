@@ -1,40 +1,55 @@
-@lock *gravybot=*mjd
-@Desc *gravybot=A MUSHbot by mjd. I do Urls.%rMy Go code is https://github.com/mjd/Xephyr%rUsing the service at http://www.yirp.org for shortening Urls.%rWeather information is from https://weatherapi.com/.%r%b'ghelp' for help
-&LASTOFF *gravybot=Mon Sep  9 20:17:49 2024
-&DB *gravybot=#1818
-&GURL_ITEM *gravybot=[u(v(db)/URL_SHORT_%0)] -> [u(v(db)/URL_LONG_%0)] [name(u(v(db)/URL_DBREF_%0))([u(v(db)/URL_DBREF_%0)])]
-&CMD_GURL_MANY *gravybot=$gurl *:@pemit %#=u(FUNC_GURL_DRIVER,%0)
-&FUNC_REAL_URL_ID *gravybot=mod(add(u(v(db)/URL_MAX),sub(u(v(db)/URL_CURRENT),%0)),u(v(db)/URL_MAX))
-&FUNC_GURL_DRIVER *gravybot=Most Recent URLs:%r[setq(0,min(u(v(db)/URL_MAX),max(%0,1)))][iter(map(me/FUNC_REAL_URL_ID,lnum(sub(%q0,1),0)),u(GURL_ITEM,##),%b,%r)]
-&TRIGGER_LAST_URL *gravybot=pose > [u(v(db)/URL_SHORT_[u(v(db)/URL_CURRENT)])]
-&GHELP_1 *gravybot=Send [name(owner(me))] your [name(me)] ideas.
-&GHELP_2 *gravybot=%bgurl-show recent Urls.
-&GHELP_3 *gravybot=%bgurl <N>-show <N> recent Urls.
-&CMD_GHELP *gravybot=$ghelp:@pemit %#=parse(sort(lattr(me/GHELP_*)),%r[get_eval(me/##)])
-@lock/UseLock *gravybot=!$*Mesozoic Records Dinosaur
-@Startup *gravybot=@wait 30={@pemit me=HANGOUT: [loc(#123)];hangout}
-&GHELP_10 *gravybot=%b%bp [name(me)]=home or hangout
-@Akill *gravybot=@wait 5=hangout
-&L_IGNORE *gravybot=#1 #163
-@Amove *gravybot=@pemit me=[name(%#)(u%#)];@switch and(comp(loc(me),loc(#123)),comp(off,u(AUTO_RETURN)))=1,{hangout},{@@}
-&GHELP_4 *gravybot=%b%bsay Gravybot weather <location>
-@Sex *gravybot=Machine
-&CMD_GURL_TEN *gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
-&GHELP_5 *gravybot=%b%b%b%b&WEATHER_LOCATION me=<your default location>
-&GHELP_6 *gravybot=%b%b%b%b@set me/WEATHER_LOCATION=vis
-&CMD_GAUTORETURN *gravybot=$gautoreturn *:@pemit %#=[name(me)] autoreturn set to [setr(0,switch(%0,on,on,1,on,off))];&AUTO_RETURN me=%q0
-&AUTO_RETURN *gravybot=off
-&DOING_RANDOM *gravybot=@doing [get_eval(me/[first(shuffle(lattr(me/GHELP_*)))])]
-@Aconnect *gravybot=@tr me/startup
-&URL *gravybot=https://github.com/mjd/Xephyr
-&WEATHER_SHORT *gravybot=^* says "gbw *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather %1"
-&WEATHER_SHORT_NONE *gravybot=^* says "gbw":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%#/WEATHER_LOCATION,dino)]"
-&WEATHER_NONE *gravybot=^* says "gravybot weather":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%#/WEATHER_LOCATION,dino)]"
-&TRANSLATE_SHORT *gravybot=^* says "gbt *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot translate %1"
-&GHELP_7 *gravybot=%b%bsay Gravybot translate <source language code> <target language code> <text>
-&GHELP_8 *gravybot=%b%bsay Gravybot stock <company or ticker>
-&GHELP_9 *gravybot=%bgautoreturn on|off-[name(me)] autoreturn
-@set *gravybot=MONITOR
-@set *gravybot=VISUAL
-@set *gravybot=ROBOT
-@set *gravybot=COMMANDS
+@lock gravybot=*mjd
+@Desc gravybot=A MUSHbot by mjd. I do Urls.%rMy Go code is https://github.com/mjd/Xephyr%rUsing the service at http://www.yirp.org for shortening Urls.%rWeather information is from https://weatherapi.com/.%r%b'ghelp' for help
+&LASTOFF gravybot=Wed Mar 25 13:37:17 2026
+&DB gravybot=#1818
+&GURL_ITEM gravybot=[u(v(db)/URL_SHORT_%0)] -> [u(v(db)/URL_LONG_%0)] [name(u(v(db)/URL_DBREF_%0))([u(v(db)/URL_DBREF_%0)])]
+&CMD_GURL_MANY gravybot=$gurl *:@pemit %#=u(FUNC_GURL_DRIVER,%0)
+&FUNC_REAL_URL_ID gravybot=mod(add(u(v(db)/URL_MAX),sub(u(v(db)/URL_CURRENT),%0)),u(v(db)/URL_MAX))
+&FUNC_GURL_DRIVER gravybot=Most Recent URLs:%r[setq(0,min(u(v(db)/URL_MAX),max(%0,1)))][iter(map(me/FUNC_REAL_URL_ID,lnum(sub(%q0,1),0)),u(GURL_ITEM,##),%b,%r)]
+&TRIGGER_LAST_URL gravybot=pose > [u(v(db)/URL_SHORT_[u(v(db)/URL_CURRENT)])]
+&CMD_GHELP gravybot=$ghelp:@pemit %#=parse(sort(lattr(me/GHELP_*)),%r[get_eval(me/##)])
+@lock/UseLock gravybot=!$*Mesozoic Records Dinosaur
+@Startup gravybot=@wait 30={@pemit me=HANGOUT: [loc(#123)];hangout}
+@Akill gravybot=@wait 5=hangout
+&L_IGNORE gravybot=#1 #163
+@Amove gravybot=@pemit me=[name(%#)(u%#)];@switch and(comp(loc(me),loc(#123)),comp(off,u(AUTO_RETURN)))=1,{hangout},{@@}
+@Sex gravybot=Machine
+&CMD_GURL_TEN gravybot=$gurl:@pemit %#=u(FUNC_GURL_DRIVER,10)
+&CMD_GAUTORETURN gravybot=$gautoreturn *:@pemit %#=[name(me)] autoreturn set to [setr(0,switch(%0,on,on,1,on,off))];&AUTO_RETURN me=%q0
+&AUTO_RETURN gravybot=on
+&DOING_RANDOM gravybot=@doing [get_eval(me/[first(shuffle(lattr(me/GHELP_*)))])]
+@Aconnect gravybot=@tr me/startup
+&URL gravybot=https://github.com/mjd/Xephyr
+&WEATHER_SHORT gravybot=^* says "gbw *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather %1"
+&WEATHER_SHORT_NONE gravybot=^* says "gbw":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%#/WEATHER_LOCATION,dino)]"
+&WEATHER_NONE gravybot=^* says "gravybot weather":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%#/WEATHER_LOCATION,dino)]"
+&WEATHER_SHORT_PLAYER gravybot=^* says "gbwp *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%1/WEATHER_LOCATION,dino)]"
+&WEATHER_PLAYER gravybot=^* says "gravybot weatherp *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot weather [default(%1/WEATHER_LOCATION,dino)]"
+&TRANSLATE_SHORT gravybot=^* says "gbt *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot translate %1"
+&DB_B gravybot=#1809
+&BEER_CMD gravybot=^* says "gravybot beer me":pose pours a [u(u(DB_B)/[first(shuffle(lattr(u(DB_B)/BEER_*)))])][switch(rand(3),0,%bLight)][switch(rand(3),0,%bIce)][switch(rand(10),0,%bReserve)][switch(rand(2),0,%b[u(u(DB_B)/[first(shuffle(lattr(u(DB_B)/STYLE_*)))])])] for [name(%#)].
+&STOMP_TRIGGER gravybot=^* stomps*:@switch [andbool(not(streq(%0,[name(me)])),member(#20 #110410,[loc(me)]))]=1,{@switch [rand(10)]=0,stomp,{@@}}
+&STOMP2_TRIGGER gravybot=^* makes a pouty face and stomps*:@switch [andbool(not(streq(%0,[name(me)])),streq(loc(me),#395))]=1,{@switch [rand(5)]=0,stomp,{@@}}
+&STOCK_SHORT_NONE gravybot=^* says "gbs":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
+&STOCK_NONE gravybot=^* says "gravybot stock":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
+&H_SHORT gravybot=^* says "gbh *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
+&H_SHORT_NONE gravybot=^* says "gbh":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
+&H_NONE gravybot=^* says "gravybot horoscope":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
+&H_SHORT_PLAYER gravybot=^* says "gbhp *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
+&H_PLAYER gravybot=^* says "gravybot horoscopep *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
+&GHELP_100 gravybot=Send [name(owner(me))] your [name(me)] ideas.
+&GHELP_110 gravybot=%bgurl-show recent Urls.
+&GHELP_120 gravybot=%bgurl <N>-show <N> recent Urls.
+&GHELP_180 gravybot=%b%b@set me/GRAVYBOT_STOCK=vis
+&GHELP_130 gravybot=%bsay Gravybot weather <location>
+&GHELP_140 gravybot=%b%b&WEATHER_LOCATION me=<your default location>
+&GHELP_170 gravybot=%b%b&GRAVYBOT_STOCK me=<your default stock>
+&GHELP_150 gravybot=%b%b@set me/WEATHER_LOCATION=vis
+&GHELP_190 gravybot=%bsay Gravybot translate <source language> <target language> <text>
+&GHELP_200 gravybot=%bsay Gravybot horoscope
+&GHELP_160 gravybot=%bsay Gravybot stock <company or ticker>
+&GHELP_500 gravybot=%bgautoreturn on|off-[name(me)] autoreturn
+@set gravybot=MONITOR
+@set gravybot=VISUAL
+@set gravybot=ROBOT
+@set gravybot=COMMANDS
