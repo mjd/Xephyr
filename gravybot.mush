@@ -33,8 +33,8 @@
 &STOCK_SHORT_NONE gravybot=^* says "gbs":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
 &STOCK_NONE gravybot=^* says "gravybot stock":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
 &H_SHORT gravybot=^* says "gbh *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
-&H_SHORT_NONE gravybot=^* says "gbh":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
-&H_NONE gravybot=^* says "gravybot horoscope":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
+&H_SHORT_NONE gravybot=^* says "gbh":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [%#]"
+&H_NONE gravybot=^* says "gravybot horoscope":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%#)]"
 &H_SHORT_PLAYER gravybot=^* says "gbhp *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
 &H_PLAYER gravybot=^* says "gravybot horoscopep *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
 &GHELP_100 gravybot=Send [name(owner(me))] your [name(me)] ideas.
