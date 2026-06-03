@@ -32,6 +32,11 @@
 &STOMP2_TRIGGER gravybot=^* makes a pouty face and stomps*:@switch [andbool(not(streq(%0,[name(me)])),streq(loc(me),#395))]=1,{@switch [rand(5)]=0,stomp,{@@}}
 &STOCK_SHORT_NONE gravybot=^* says "gbs":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
 &STOCK_NONE gravybot=^* says "gravybot stock":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot stock [default(%#/GRAVYBOT_STOCK,dino)]"
+&H_SHORT gravybot=^* says "gbh *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
+&H_SHORT_NONE gravybot=^* says "gbh":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
+&H_NONE gravybot=^* says "gravybot horoscope":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(me)]"
+&H_SHORT_PLAYER gravybot=^* says "gbhp *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
+&H_PLAYER gravybot=^* says "gravybot horoscopep *":@pemit me=\[[name(%#)]\(%#\)] [name(%#)] says "gravybot horoscope [num(%1)]"
 &GHELP_100 gravybot=Send [name(owner(me))] your [name(me)] ideas.
 &GHELP_110 gravybot=%bgurl-show recent Urls.
 &GHELP_120 gravybot=%bgurl <N>-show <N> recent Urls.
@@ -41,6 +46,7 @@
 &GHELP_170 gravybot=%b%b&GRAVYBOT_STOCK me=<your default stock>
 &GHELP_150 gravybot=%b%b@set me/WEATHER_LOCATION=vis
 &GHELP_190 gravybot=%bsay Gravybot translate <source language> <target language> <text>
+&GHELP_200 gravybot=%bsay Gravybot horoscope
 &GHELP_160 gravybot=%bsay Gravybot stock <company or ticker>
 &GHELP_500 gravybot=%bgautoreturn on|off-[name(me)] autoreturn
 @set gravybot=MONITOR
