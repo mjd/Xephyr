@@ -630,11 +630,11 @@ var horoscopeOpeners = []string{
 	"A cosmic wave that has been building is about to arrive on your shore.",
 	"The universe has filed a favorable report about your current trajectory.",
 	"The gravy of circumstance is thick today. Do not let it congeal.",
-	"Everything is gravy — and today, gravy is everything.",
+	"Everything is gravy - and today, gravy is everything.",
 	// Dinosaur
 	"Like the Velociraptor approaching an unsuspecting herbivore, opportunity moves faster than you think.",
 	"The great extinction that cleared your path happened longer ago than you realize.",
-	"Prehistoric forces — older than memory, older than bone — are stirring in your favor.",
+	"Prehistoric forces - older than memory, older than bone - are stirring in your favor.",
 	"The fossil record of your ambitions has finally reached a readable stratum.",
 	"The Jurassic period of your recent struggles is drawing to a close.",
 	"Like a Triceratops standing its ground, your position is stronger than it looks.",
@@ -647,26 +647,26 @@ var horoscopeOpeners = []string{
 	"Ancient and reliable instincts are more trustworthy today than modern ones.",
 	"The tar pit is behind you. The open plain is ahead.",
 	"Your species has survived worse. Context is everything.",
-	"The Ankylosaur in you — armored, patient, slow to move — is correct today.",
+	"The Ankylosaur in you - armored, patient, slow to move - is correct today.",
 	"A Pterodactyl-level view of your situation reveals things the ground perspective misses.",
 	"Like the mosasaur that ruled the ancient seas, your domain is larger than you have claimed.",
 	"The mass extinction event in your professional life has ended. Adapt accordingly.",
 	"Carboniferous-era patience is what today requires. You have it.",
 	"The iridium layer in your life story marks a before and after. You are now after.",
 	"Like the Spinosaurus near water, you are strongest in your natural environment.",
-	"The Paleocene dawn — that first morning after everything changed — is exactly where you are.",
+	"The Paleocene dawn - that first morning after everything changed - is exactly where you are.",
 	"Your evolutionary line has been quietly building toward this moment.",
 	"The meteorite has already landed. What remains is how you respond.",
 	"The Permian extinction was worse. You have already survived more than you think.",
 	"Like the theropod that learned to use its forelimbs cleverly, your constraints are actually assets.",
-	"The Eocene period of gradual warming that follows catastrophe — that is where you are.",
+	"The Eocene period of gradual warming that follows catastrophe - that is where you are.",
 	"Your Triassic origin story is more resilient than the Jurassic ones everyone prefers.",
 	"The feathered descendants of the great dinosaurs built nests that outlasted them all.",
 	// Dolphin
 	"Your echolocation is unusually accurate today. Trust the signal.",
 	"The pod has spoken. The currents agree.",
 	"Something large and benevolent moves through the deep water of your circumstances.",
-	"The ocean of possibility has swells today — ride them rather than fight them.",
+	"The ocean of possibility has swells today - ride them rather than fight them.",
 	"Your sonar is pinging something real. Do not dismiss the echo.",
 	"The deep current that moves beneath visible events is running in your direction.",
 	"The pod has been watching from below. What it has seen encourages it.",
@@ -685,7 +685,7 @@ var horoscopeOpeners = []string{
 	"The depths that seemed threatening are, on reflection, navigable.",
 	"The ocean of your circumstances is colder than you would like but richer than it looks.",
 	// Thorazine
-	"The flatness you have been feeling is not emptiness — it is the stillness before something important.",
+	"The flatness you have been feeling is not emptiness - it is the stillness before something important.",
 	"Clarity arrives today, as it sometimes does, from an unexpected pharmacological angle.",
 	"The haze has thinned enough to see through, if you look carefully.",
 	"Your particular chemical equilibrium is, today, exactly what the situation requires.",
@@ -702,7 +702,7 @@ var horoscopeOpeners = []string{
 	"The pharmacological metaphor of your life suggests today is a good day for a dosage review.",
 	// EDM
 	"Get ready for this. The drop is coming and the cosmos helped produce it.",
-	"There is no limit — no limit — to the possibilities your day contains.",
+	"There is no limit - no limit - to the possibilities your day contains.",
 	"The universe is playing something with a hard four-on-the-floor beat, and it is aimed at you.",
 	"The rave of your circumstances is just getting started. The real tracks have not played yet.",
 	"The BPM of cosmic events is rising. Your body already knows this.",
@@ -715,7 +715,7 @@ var horoscopeOpeners = []string{
 	"The warehouse is packed with opportunity. Navigate it.",
 	"Your particular frequency is finally matching the room's frequency.",
 	"The build has been extended past the point of comfort. The release is worth it.",
-	"Show me love — this is the message the universe is sending today.",
+	"Show me love - this is the message the universe is sending today.",
 	"The twilight zone of your uncertainty is passing. Dawn is a 140-BPM thing.",
 	"The four AM of your situation is the hour when everything becomes clear.",
 	"The strobes of insight are firing in sequence today.",
@@ -724,7 +724,7 @@ var horoscopeOpeners = []string{
 	"Your personal rave has reached the peak hour. This is the moment you dressed for.",
 	"I sit on acid and what I see is your future arriving at high speed and high resolution.",
 	"The rough bass of circumstance has been mixed with something sweeter. The blend is today.",
-	"Lords of the situation you are in — that is what you are becoming.",
+	"Lords of the situation you are in - that is what you are becoming.",
 }
 
 var horoscopePredictions = []string{
@@ -740,7 +740,7 @@ var horoscopePredictions = []string{
 	"The meeting you dread will end earlier than expected and better than feared.",
 	"A small, overlooked detail turns out to be the entire point.",
 	"Someone will ask your opinion. Give it honestly.",
-	"The obstacle is not in front of you — you have already passed it.",
+	"The obstacle is not in front of you - you have already passed it.",
 	"Today's frustration is tomorrow's amusing anecdote.",
 	"What you call bad timing is actually very precise timing.",
 	"A stranger holds a piece of your puzzle. Engage with strangers.",
@@ -774,7 +774,7 @@ var horoscopePredictions = []string{
 	"A lesson you learned the hard way is about to be extremely useful.",
 	"The waiting is nearly over. Something that has taken a long time is almost ready.",
 	"A resource you overlooked is more valuable than you priced it.",
-	"Today your patience — which has been tested significantly — begins to yield returns.",
+	"Today your patience - which has been tested significantly - begins to yield returns.",
 	"The quiet progress you have been making is larger than it looks from inside it.",
 	"An unexpected advocate has been speaking well of you in rooms you have not been in.",
 	"A detour you resented will be revealed as a shortcut in retrospect.",
@@ -786,14 +786,14 @@ var horoscopePredictions = []string{
 	"The silence from a person who matters has been thoughtful, not indifferent.",
 	"An opportunity is ripening. Do not pick it too early.",
 	"The version of yourself you have been working toward is arriving ahead of schedule.",
-	"A number — literal or metaphorical — is about to change in your favor.",
+	"A number - literal or metaphorical - is about to change in your favor.",
 	"Today the variables in a persistent problem align for a solution.",
 	"Someone is about to give you exactly what you asked for. Check that you still want it.",
 	"A talent you have kept private deserves a slightly larger audience.",
 	"The system you set up and forgot about is quietly producing results.",
 	"What you have been comparing yourself to unfavorably is not the right comparison.",
 	"An intervention of the friendly kind is available if you ask for it.",
-	"The thing you keep saying you will do tomorrow — today is the day.",
+	"The thing you keep saying you will do tomorrow - today is the day.",
 	"A piece of news you have been dreading will land softer than you expected.",
 	"The groundwork you laid when things were quiet is now supporting something real.",
 	"An instinct you suppressed out of politeness was right. You will find this out today.",
@@ -802,7 +802,7 @@ var horoscopePredictions = []string{
 	"A creative block you have been suffering will clear today under unexpected circumstances.",
 	"The compromise you agreed to reluctantly is going to work better than the original plan.",
 	"Something that cost you greatly will be repaid, though perhaps not in the currency you expected.",
-	"The question you have been asking has an answer. You have already heard it — go back and listen.",
+	"The question you have been asking has an answer. You have already heard it - go back and listen.",
 	"A relationship you wrote off as finished has more chapters remaining.",
 	"The hard thing you did recently has changed more than you know.",
 	"Something you thought required a large effort can be solved with a small and specific one.",
@@ -813,7 +813,7 @@ var horoscopePredictions = []string{
 	"An offer is about to be made. Do not answer immediately.",
 	"Something you assumed was finished is actually in a third act.",
 	"The work you did on yourself last year is paying dividends in your circumstances today.",
-	"A lucky encounter is available if you leave the house — or the familiar.",
+	"A lucky encounter is available if you leave the house - or the familiar.",
 	"The structure you thought was collapsing was actually reorganizing.",
 	"Someone has already forgiven you. You do not need to carry that any longer.",
 	"A door that seemed welded shut has developed a hinge.",
@@ -916,7 +916,7 @@ var horoscopePredictions = []string{
 	"What has been holding you back is less structural than it appears.",
 	"The collaboration you dismissed as unlikely is, on reflection, the right move.",
 	"A skill you learned in a previous chapter is needed in this one.",
-	"The resistance you are encountering is not opposition — it is information.",
+	"The resistance you are encountering is not opposition - it is information.",
 	"Something you did entirely for others is about to benefit you as well.",
 	"The plan needs one more element. You already have it. Look again.",
 	"Today's challenge contains its own solution if you read the whole thing.",
@@ -941,7 +941,7 @@ var horoscopePredictions = []string{
 	"The gravy train has not left the station. In fact, it is adding a car.",
 	"What you have been cooking has finally thickened into something worth serving.",
 	// Dinosaur
-	"Your territorial instincts are correct today — defend your creative space.",
+	"Your territorial instincts are correct today - defend your creative space.",
 	"Like the small feathered dinosaurs that became birds, your adaptations are working.",
 	"The herbivores around you mean no harm. The predators are currently sleeping. Proceed.",
 	"You are not going extinct. You are evolving. The difference is everything.",
@@ -950,7 +950,7 @@ var horoscopePredictions = []string{
 	"Your scales have been earned. Wear them accordingly.",
 	"The pack behavior you have been resisting is actually what the situation calls for.",
 	"Like the sauropod that outlasted predators through sheer size, your persistence is the strategy.",
-	"Your instinct to migrate — professionally or personally — is a sound one.",
+	"Your instinct to migrate - professionally or personally - is a sound one.",
 	"The environment is changing. Adapt faster than you think you need to.",
 	"Like a Triceratops standing its ground, your refusal to yield today is correct.",
 	"The small, fast creature in your ecosystem is not a threat. It is a messenger.",
@@ -958,7 +958,7 @@ var horoscopePredictions = []string{
 	"The swamp of your current situation has solid ground underneath it. Keep moving.",
 	"The predator-prey dynamic in your situation is inverting. Note the shift.",
 	"What looks like competition is actually co-evolution. Engage rather than flee.",
-	"Your nest — literal or metaphorical — is more valuable than you have priced it.",
+	"Your nest - literal or metaphorical - is more valuable than you have priced it.",
 	"The long-necked view is available to you today. Rise above the immediate vegetation.",
 	"Like the armored dinosaurs that outlasted the swift ones, your durability is your advantage.",
 	"The stampede is in a different direction. Step aside and let it pass.",
@@ -966,13 +966,13 @@ var horoscopePredictions = []string{
 	"The volcanic activity in your professional landscape will subside. Build on high ground for now.",
 	"Like the dinosaurs that survived by moving into new ecological niches, a pivot is available.",
 	"The dominant species in your environment is not as dominant as it presents itself.",
-	"Your tracks — professional and personal — are more visible to others than you realize.",
+	"Your tracks - professional and personal - are more visible to others than you realize.",
 	"The watering hole situation requires patience and good timing. Wait.",
 	"The egg you have been incubating is close to hatching. Do not abandon it now.",
 	"Something large and territorial is vacating your space. Move in behind it.",
 	"The fossils of your old strategies are interesting but not load-bearing. Build fresh.",
 	// Dolphin
-	"Communication is your primary advantage today. Use it like sonar — send clearly, listen harder.",
+	"Communication is your primary advantage today. Use it like sonar - send clearly, listen harder.",
 	"Play is not a distraction from your goals; it is how you locate them.",
 	"Your pod is closer than you think. Surface and signal.",
 	"Leap when it feels right. The water will receive you.",
@@ -984,7 +984,7 @@ var horoscopePredictions = []string{
 	"Signal broadly and see what signals back. You will be surprised.",
 	"Play the long game the way dolphins play: joyfully and at speed.",
 	"The surface is where the action is today. Come up for air and for visibility.",
-	"Something needs your full sensory attention — not just your analytical mind.",
+	"Something needs your full sensory attention - not just your analytical mind.",
 	"The school of fish you are pursuing is larger than the one visible from the surface.",
 	"Your instinct to circle back and investigate is correct today.",
 	"What the pod knows collectively is more than what you know individually. Ask them.",
@@ -1006,14 +1006,14 @@ var horoscopePredictions = []string{
 	"The contraindication in your current plan is not what you think it is.",
 	"The therapeutic window for today's opportunity is narrow. Do not miss it.",
 	"What requires adjustment is the dosage, not the direction.",
-	"Your current symptom — a vague sense that something is about to change — is diagnostic.",
+	"Your current symptom - a vague sense that something is about to change - is diagnostic.",
 	"The breakthrough is not a dramatic one. It is a quiet titration toward clarity.",
 	"You have been at a therapeutic dose of difficulty. The prescription is about to change.",
 	// EDM
 	"Pump up the volume on a project you have been keeping too quiet.",
 	"Move your body toward what matters. The rhythm will follow.",
 	"You have got the power. The question is whether you intend to use it.",
-	"Everybody dance now — including in the areas of your life where dancing seems unlikely.",
+	"Everybody dance now - including in the areas of your life where dancing seems unlikely.",
 	"The dancefloor of opportunity is open. It does not stay open past 4 AM.",
 	"The remix of your current situation is better than the original.",
 	"The rave that is your life requires your full attendance. Show up.",
@@ -1026,7 +1026,7 @@ var horoscopePredictions = []string{
 	"The track has been building since the beginning of this week. The payoff is today.",
 	"Release the old set. The new one is built and ready.",
 	"The acid house of your intuition has been running all night. Trust what it has produced.",
-	"Step into the light — literal and figurative — and be seen doing what you do.",
+	"Step into the light - literal and figurative - and be seen doing what you do.",
 	"Your frequency has been niche. That is about to change.",
 	"The floor is yours. You have been waiting for permission that was never required.",
 	"Pump up the jam on the thing that has been low-energy for too long.",
@@ -1042,7 +1042,7 @@ var horoscopeClosers = []string{
 	"Avoid making irreversible decisions before you have eaten something.",
 	"Your lucky color is the one you see when you close your eyes.",
 	"Beware of those who agree with everything you say.",
-	"Today's energy peaks at an inconvenient moment — plan around it.",
+	"Today's energy peaks at an inconvenient moment - plan around it.",
 	"Lucky object: something broken that still mostly works.",
 	"Mercury is in retrograde in your checking account.",
 	"Do not, under any circumstances, look directly at Tuesday.",
@@ -1143,7 +1143,7 @@ var horoscopeClosers = []string{
 	"The last time you were in this situation, you did the right thing. Do it again.",
 	"Lucky version: the draft before the final draft.",
 	"The thing that seems too fast is actually the appropriate speed.",
-	"Your lucky noise is the background kind — not silence, not overwhelming.",
+	"Your lucky noise is the background kind - not silence, not overwhelming.",
 	"The detail everyone else has been glossing over is the one you noticed. Trust that.",
 	"Lucky combination: two things that seem unlikely to work together.",
 	"The gift you were given that you never properly used is ready to be used.",
@@ -1302,7 +1302,7 @@ var horoscopeClosers = []string{
 	"Your lucky contraindication: the thing you should not mix with today's ambitions.",
 	"The half-life of today's anxiety is shorter than it feels.",
 	"Lucky receptor: the one that responds to rest.",
-	"Beware of therapeutic approaches that require you to feel worse before feeling better — unless you are currently in one.",
+	"Beware of therapeutic approaches that require you to feel worse before feeling better - unless you are currently in one.",
 	"Your lucky mechanism of action: patience applied consistently over time.",
 	"The titration is nearly complete. Do not rush the last adjustments.",
 	"Lucky dosage form: extended release.",
@@ -1336,6 +1336,78 @@ var horoscopeClosers = []string{
 	"The night is young. In the metaphorical sense, it is always 11 PM.",
 }
 
+var luckyConstants = []string{
+	// Transcendental and mathematical constants
+	"pi (3.1415927)",
+	"e (2.7182818)",
+	"phi (1.6180340)",
+	"tau (6.2831853)",
+	"sqrt(2) (1.4142136)",
+	"sqrt(3) (1.7320508)",
+	"sqrt(5) (2.2360680)",
+	"gamma (0.5772157)",
+	"ln(2) (0.6931472)",
+	"ln(10) (2.3025851)",
+	"Feigenbaum delta (4.6692017)",
+	"zeta(3) (1.2020569)",
+	"Catalan's constant (0.9159656)",
+	"Khinchin's constant (2.6854520)",
+	"Glaisher's constant (1.2824272)",
+	"Mills' constant (1.3063779)",
+	"omega (0.5671433)",
+	"1/sqrt(2*pi) (0.3989423)",
+	"Plastic constant (1.3247180)",
+	"Champernowne constant (0.1234567)",
+	// Physical and scientific constants
+	"c (2.9979246 * 10^8 m/s)",
+	"h (6.6260702 * 10^-34 J*s)",
+	"h-bar (1.0545718 * 10^-34 J*s)",
+	"G (6.6743015 * 10^-11 N*m^2/kg^2)",
+	"kB (1.3806503 * 10^-23 J/K)",
+	"NA (6.0221408 * 10^23 /mol)",
+	"alpha (7.2973526 * 10^-3)",
+	"me (9.1093837 * 10^-31 kg)",
+	"R (8.3144598 J/(mol*K))",
+	"sigma (5.6703744 * 10^-8 W/(m^2*K^4))",
+}
+
+func formatWithCommas(n int) string {
+	s := strconv.Itoa(n)
+	var result []byte
+	for i := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			result = append(result, ',')
+		}
+		result = append(result, s[i])
+	}
+	return string(result)
+}
+
+func generateLuckyNumber(rng *rand.Rand) string {
+	roll := rng.Intn(100)
+	switch {
+	case roll < 70:
+		// common small integer 1-99
+		return strconv.Itoa(rng.Intn(99) + 1)
+	case roll < 85:
+		// larger integer 101-1000
+		return strconv.Itoa(rng.Intn(900) + 101)
+	case roll < 90:
+		// large number: millions or billions
+		if rng.Intn(2) == 0 {
+			return formatWithCommas(rng.Intn(998_000_000) + 1_000_000)
+		}
+		return formatWithCommas(rng.Intn(998_000_000_000) + 1_000_000_000)
+	case roll < 95:
+		// decimal with 5-7 places
+		places := rng.Intn(3) + 5
+		return fmt.Sprintf("%.*f", places, float64(rng.Intn(100))+rng.Float64())
+	default:
+		// transcendental or physical constant
+		return luckyConstants[rng.Intn(len(luckyConstants))]
+	}
+}
+
 func generateHoroscope(userID int, date time.Time) string {
 	dateStr := date.UTC().Format("2006-01-02")
 	h := fnv.New64a()
@@ -1345,8 +1417,9 @@ func generateHoroscope(userID int, date time.Time) string {
 	opener := horoscopeOpeners[rng.Intn(len(horoscopeOpeners))]
 	prediction := horoscopePredictions[rng.Intn(len(horoscopePredictions))]
 	closer := horoscopeClosers[rng.Intn(len(horoscopeClosers))]
+	luckyNum := generateLuckyNumber(rng)
 
-	return fmt.Sprintf("%s %s %s", opener, prediction, closer)
+	return fmt.Sprintf("%s %s %s Lucky number for today: %s.", opener, prediction, closer, luckyNum)
 }
 
 func (app *application) checkLineForRegexps(line string) (string, error) {

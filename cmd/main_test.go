@@ -3,6 +3,8 @@ package main
 import (
 	"io"
 	"log"
+	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -62,15 +64,14 @@ func TestGenerateHoroscope_NonEmpty(t *testing.T) {
 	}
 }
 
-func TestGenerateHoroscope_ThreeSentences(t *testing.T) {
-	// The output is "opener prediction closer" — each drawn from a separate bank.
-	// We verify that the opener, prediction, and closer each come from their
-	// respective banks by checking that the output starts with a known opener
-	// and ends with a known closer for a deterministic seed.
+func TestGenerateHoroscope_PhraseProvenance(t *testing.T) {
+	// Output format: "{opener} {prediction} {closer} Lucky number for today: {num}."
+	// Verify opener, prediction, and closer each come from their respective banks.
 	date := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
 
 	for _, id := range []int{1, 42, 401, 1234, 5678, 1818, 99999} {
 		h := generateHoroscope(id, date)
+
 		foundOpener := false
 		for _, o := range horoscopeOpeners {
 			if strings.HasPrefix(h, o) {
@@ -84,14 +85,36 @@ func TestGenerateHoroscope_ThreeSentences(t *testing.T) {
 
 		foundCloser := false
 		for _, c := range horoscopeClosers {
-			if strings.HasSuffix(h, c) {
+			if strings.Contains(h, c) {
 				foundCloser = true
 				break
 			}
 		}
 		if !foundCloser {
-			t.Errorf("id=%d: output does not end with any known closer:\n  %s", id, h)
+			t.Errorf("id=%d: output does not contain any known closer:\n  %s", id, h)
 		}
+	}
+}
+
+func TestGenerateHoroscope_LuckyNumberPresent(t *testing.T) {
+	date := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+	for _, id := range []int{1, 42, 401, 1234, 5678, 1818} {
+		h := generateHoroscope(id, date)
+		if !strings.Contains(h, "Lucky number for today: ") {
+			t.Errorf("id=%d: missing lucky number suffix:\n  %s", id, h)
+		}
+		if !strings.HasSuffix(h, ".") {
+			t.Errorf("id=%d: output does not end with period:\n  %s", id, h)
+		}
+	}
+}
+
+func TestGenerateHoroscope_LuckyNumberDeterministic(t *testing.T) {
+	date := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+	a := generateHoroscope(401, date)
+	b := generateHoroscope(401, date)
+	if a != b {
+		t.Errorf("lucky number not deterministic: %q != %q", a, b)
 	}
 }
 
@@ -261,5 +284,253 @@ func TestCheckLine_NoMatch(t *testing.T) {
 	}
 	if cmd != "" {
 		t.Errorf("expected empty command, got: %q", cmd)
+	}
+}
+
+// ── generateLuckyNumber ───────────────────────────────────────────────────────
+
+func TestGenerateLuckyNumber_NonEmpty(t *testing.T) {
+	rng := rand.New(rand.NewSource(42))
+	for i := 0; i < 100; i++ {
+		n := generateLuckyNumber(rng)
+		if strings.TrimSpace(n) == "" {
+			t.Errorf("iteration %d: generateLuckyNumber returned empty string", i)
+		}
+	}
+}
+
+func TestGenerateLuckyNumber_SmallIntegerRange(t *testing.T) {
+	// Force into the small-integer branch by exhausting rolls at < 70.
+	// We verify a broad sample contains at least some values in [1,99].
+	rng := rand.New(rand.NewSource(0))
+	found := false
+	for i := 0; i < 200; i++ {
+		n := generateLuckyNumber(rng)
+		v, err := strconv.Atoi(n)
+		if err == nil && v >= 1 && v <= 99 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("no small integer (1–99) found in 200 samples")
+	}
+}
+
+func TestGenerateLuckyNumber_ConstantFormat(t *testing.T) {
+	// Every constant entry must be non-empty and not blank.
+	for i, c := range luckyConstants {
+		if strings.TrimSpace(c) == "" {
+			t.Errorf("luckyConstants[%d] is blank", i)
+		}
+	}
+}
+
+func TestFormatWithCommas(t *testing.T) {
+	cases := []struct {
+		n    int
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{99, "99"},
+		{999, "999"},
+		{1000, "1,000"},
+		{9999, "9,999"},
+		{99999, "99,999"},
+		{1000000, "1,000,000"},
+		{1234567890, "1,234,567,890"},
+	}
+	for _, tc := range cases {
+		got := formatWithCommas(tc.n)
+		if got != tc.want {
+			t.Errorf("formatWithCommas(%d) = %q, want %q", tc.n, got, tc.want)
+		}
+	}
+}
+
+func TestGenerateLuckyNumber_AllBranchesCovered(t *testing.T) {
+	// Sample 2000 outputs and verify every branch is represented at least once.
+	// Expected counts: ~1400 small-int, ~300 large-int, ~100 big-number,
+	// ~100 decimal, ~100 constant — so any branch missing after 2000 runs
+	// would be a near-impossible fluke.
+	type result struct{ smallInt, largeInt, bigNum, decimal, constant int }
+	var counts result
+
+	rng := rand.New(rand.NewSource(12345))
+	for i := 0; i < 2000; i++ {
+		n := generateLuckyNumber(rng)
+		switch {
+		case isConstant(n):
+			counts.constant++
+		case strings.Contains(n, "."):
+			counts.decimal++
+		case strings.Contains(n, ","):
+			counts.bigNum++
+		default:
+			v, err := strconv.Atoi(n)
+			if err != nil {
+				t.Errorf("iteration %d: not parseable as int and not decimal/big/constant: %q", i, n)
+				continue
+			}
+			if v >= 1 && v <= 99 {
+				counts.smallInt++
+			} else {
+				counts.largeInt++
+			}
+		}
+	}
+
+	if counts.smallInt == 0 {
+		t.Error("small-int branch never produced output")
+	}
+	if counts.largeInt == 0 {
+		t.Error("large-int branch never produced output")
+	}
+	if counts.bigNum == 0 {
+		t.Error("big-number branch never produced output")
+	}
+	if counts.decimal == 0 {
+		t.Error("decimal branch never produced output")
+	}
+	if counts.constant == 0 {
+		t.Error("constant branch never produced output")
+	}
+}
+
+// isConstant returns true if s matches any entry in luckyConstants.
+func isConstant(s string) bool {
+	for _, c := range luckyConstants {
+		if s == c {
+			return true
+		}
+	}
+	return false
+}
+
+func TestGenerateLuckyNumber_SmallIntBounds(t *testing.T) {
+	rng := rand.New(rand.NewSource(0))
+	for i := 0; i < 2000; i++ {
+		n := generateLuckyNumber(rng)
+		v, err := strconv.Atoi(n)
+		if err != nil {
+			continue // not a plain integer — skip
+		}
+		if v < 1 {
+			t.Errorf("integer lucky number %d is below 1", v)
+		}
+		if v > 1000 {
+			t.Errorf("integer lucky number %d exceeds 1000", v)
+		}
+	}
+}
+
+func TestGenerateLuckyNumber_DecimalPlaces(t *testing.T) {
+	rng := rand.New(rand.NewSource(99))
+	found := 0
+	for i := 0; i < 2000 && found < 10; i++ {
+		n := generateLuckyNumber(rng)
+		// Skip constants (they may contain a decimal point but are not decimal outputs).
+		if isConstant(n) || !strings.Contains(n, ".") {
+			continue
+		}
+		found++
+		parts := strings.Split(n, ".")
+		if len(parts) != 2 {
+			t.Errorf("decimal %q has unexpected format", n)
+			continue
+		}
+		places := len(parts[1])
+		if places < 5 || places > 7 {
+			t.Errorf("decimal %q has %d decimal places, want 5–7", n, places)
+		}
+	}
+	if found == 0 {
+		t.Error("no decimal output found in 2000 samples")
+	}
+}
+
+func TestGenerateLuckyNumber_BigNumberHasCommas(t *testing.T) {
+	rng := rand.New(rand.NewSource(77))
+	found := 0
+	for i := 0; i < 2000 && found < 5; i++ {
+		n := generateLuckyNumber(rng)
+		if !strings.Contains(n, ",") {
+			continue
+		}
+		found++
+		// Must be all digits and commas, no other characters.
+		for _, c := range n {
+			if c != ',' && (c < '0' || c > '9') {
+				t.Errorf("big number %q contains unexpected character %q", n, string(c))
+			}
+		}
+		// Must parse to a value >= 1,000,000.
+		plain := strings.ReplaceAll(n, ",", "")
+		v, err := strconv.Atoi(plain)
+		if err != nil {
+			t.Errorf("big number %q not parseable after removing commas: %v", n, err)
+			continue
+		}
+		if v < 1_000_000 {
+			t.Errorf("big number %q parses to %d, expected >= 1,000,000", n, v)
+		}
+	}
+	if found == 0 {
+		t.Error("no big-number output found in 2000 samples")
+	}
+}
+
+func TestGenerateLuckyNumber_ConstantsNoDuplicates(t *testing.T) {
+	seen := make(map[string]int)
+	for i, c := range luckyConstants {
+		if prev, ok := seen[c]; ok {
+			t.Errorf("duplicate constant at index %d and %d: %q", prev, i, c)
+		}
+		seen[c] = i
+	}
+}
+
+// ── ASCII-only output ─────────────────────────────────────────────────────────
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func TestAllPhraseBanksAreASCII(t *testing.T) {
+	for i, s := range horoscopeOpeners {
+		if !isASCII(s) {
+			t.Errorf("horoscopeOpeners[%d] contains non-ASCII: %q", i, s)
+		}
+	}
+	for i, s := range horoscopePredictions {
+		if !isASCII(s) {
+			t.Errorf("horoscopePredictions[%d] contains non-ASCII: %q", i, s)
+		}
+	}
+	for i, s := range horoscopeClosers {
+		if !isASCII(s) {
+			t.Errorf("horoscopeClosers[%d] contains non-ASCII: %q", i, s)
+		}
+	}
+	for i, s := range luckyConstants {
+		if !isASCII(s) {
+			t.Errorf("luckyConstants[%d] contains non-ASCII: %q", i, s)
+		}
+	}
+}
+
+func TestGenerateHoroscope_OutputIsASCII(t *testing.T) {
+	date := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+	for id := 1; id <= 500; id++ {
+		h := generateHoroscope(id, date)
+		if !isASCII(h) {
+			t.Errorf("id=%d: horoscope contains non-ASCII: %q", id, h)
+		}
 	}
 }
