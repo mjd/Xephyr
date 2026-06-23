@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -532,5 +535,322 @@ func TestGenerateHoroscope_OutputIsASCII(t *testing.T) {
 		if !isASCII(h) {
 			t.Errorf("id=%d: horoscope contains non-ASCII: %q", id, h)
 		}
+	}
+}
+
+// ── formatUSD ─────────────────────────────────────────────────────────────────
+
+func TestFormatUSD(t *testing.T) {
+	cases := []struct {
+		price float64
+		want  string
+	}{
+		{0.08, "$0.08"},
+		{1.00, "$1.00"},
+		{99.99, "$99.99"},
+		{1000.00, "$1,000.00"},
+		{1728.58, "$1,728.58"},
+		{63995.00, "$63,995.00"},
+		{1234567.89, "$1,234,567.89"},
+	}
+	for _, tc := range cases {
+		got := formatUSD(tc.price)
+		if got != tc.want {
+			t.Errorf("formatUSD(%v) = %q, want %q", tc.price, got, tc.want)
+		}
+	}
+}
+
+// ── getCryptoQuote helpers ────────────────────────────────────────────────────
+
+// newCoinGeckoServer starts a test HTTP server that serves the given search and
+// price response bodies as JSON from /search and /simple/price paths.
+func newCoinGeckoServer(t *testing.T, searchBody, priceBody interface{}) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/search"):
+			json.NewEncoder(w).Encode(searchBody)
+		case strings.HasPrefix(r.URL.Path, "/simple/price"):
+			json.NewEncoder(w).Encode(priceBody)
+		default:
+			t.Errorf("unexpected CoinGecko request path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+		}
+	}))
+}
+
+// newCryptoApp wraps newTestApp and points coingeckoBaseURL at the given server.
+func newCryptoApp(t *testing.T, baseURL string) *application {
+	t.Helper()
+	app := newTestApp()
+	app.config.coingeckoBaseURL = baseURL
+	return app
+}
+
+// ── getCryptoQuote ────────────────────────────────────────────────────────────
+
+func TestGetCryptoQuote_Basic(t *testing.T) {
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 63995.0, "usd_24h_change": 0.21},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("btc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "BTC(Bitcoin): $63,995.00 (+0.21%% 24h)\n"
+	if result != want {
+		t.Errorf("getCryptoQuote() = %q, want %q", result, want)
+	}
+}
+
+func TestGetCryptoQuote_OutputFormat(t *testing.T) {
+	// Verify the complete format: SYMBOL(Name): $X,XXX.XX (+/-X.XX%% 24h)\n
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "ethereum", "symbol": "ETH", "name": "Ethereum"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"ethereum": {"usd": 1728.58, "usd_24h_change": -0.12},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("eth")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "ETH(Ethereum): $1,728.58 (-0.12%% 24h)\n"
+	if result != want {
+		t.Errorf("getCryptoQuote() format mismatch:\n  got  %q\n  want %q", result, want)
+	}
+}
+
+func TestGetCryptoQuote_NegativeChange(t *testing.T) {
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "dogecoin", "symbol": "DOGE", "name": "Dogecoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"dogecoin": {"usd": 0.08, "usd_24h_change": -0.99},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("doge")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "(-0.99%%") {
+		t.Errorf("expected negative change in result, got: %q", result)
+	}
+	if strings.Contains(result, "+-") || strings.Contains(result, "++") {
+		t.Errorf("unexpected double sign in result: %q", result)
+	}
+}
+
+func TestGetCryptoQuote_NoResults(t *testing.T) {
+	search := map[string]interface{}{"coins": []interface{}{}}
+	srv := newCoinGeckoServer(t, search, nil)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("unknowncoin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "Crypto error:") {
+		t.Errorf("expected 'Crypto error:' prefix, got: %q", result)
+	}
+}
+
+func TestGetCryptoQuote_NoPriceData(t *testing.T) {
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	// Price response deliberately omits the "bitcoin" key.
+	price := map[string]map[string]float64{}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("btc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "Crypto error:") {
+		t.Errorf("expected 'Crypto error:' prefix, got: %q", result)
+	}
+}
+
+func TestGetCryptoQuote_SearchAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(429) // rate limited
+	}))
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("btc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "Crypto error:") {
+		t.Errorf("expected 'Crypto error:' prefix on non-200 search, got: %q", result)
+	}
+}
+
+func TestGetCryptoQuote_ShortQuerySymbolMatch(t *testing.T) {
+	// First result does not match "BTC" exactly; the exact symbol match appears
+	// second. For a short query (len <= 5) the exact match should win.
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "wrapped-btc", "symbol": "WBTC", "name": "Wrapped Bitcoin"},
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 64000.0, "usd_24h_change": 0.5},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("btc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "BTC(Bitcoin):") {
+		t.Errorf("short query should select by exact symbol match, got: %q", result)
+	}
+}
+
+func TestGetCryptoQuote_LongQueryTrustsRanking(t *testing.T) {
+	// For queries longer than 5 chars, trust CoinGecko's ranked first result.
+	// A meme coin with symbol "BITCOIN" later in the list must NOT override it.
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+			{"id": "harrypotterobamasonic10in", "symbol": "BITCOIN", "name": "HarryPotterObamaSonic10Inu"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 64000.0, "usd_24h_change": 0.5},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	result, err := newCryptoApp(t, srv.URL).getCryptoQuote("bitcoin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "BTC(Bitcoin):") {
+		t.Errorf("long query should use top-ranked result, not meme coin symbol match, got: %q", result)
+	}
+}
+
+// ── checkLineForRegexps – crypto dispatch ────────────────────────────────────
+
+func TestCheckLine_CryptoPrefixLower(t *testing.T) {
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 64000.0, "usd_24h_change": 0.5},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	app := newCryptoApp(t, srv.URL)
+	cmd, err := app.checkLineForRegexps(`[Dino(#1234)] Dino says "gbs c:btc"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(cmd, "pose S> ") {
+		t.Errorf("expected 'pose S> ' prefix, got: %q", cmd)
+	}
+	if !strings.Contains(cmd, "BTC(Bitcoin)") {
+		t.Errorf("expected crypto result in output, got: %q", cmd)
+	}
+	if !strings.Contains(cmd, "24h") {
+		t.Errorf("expected '24h' label in crypto output, got: %q", cmd)
+	}
+}
+
+func TestCheckLine_CryptoPrefixUpper(t *testing.T) {
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 64000.0, "usd_24h_change": 0.5},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	app := newCryptoApp(t, srv.URL)
+	cmd, err := app.checkLineForRegexps(`[Dino(#1234)] Dino says "gbs C:btc"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(cmd, "pose S> ") {
+		t.Errorf("expected 'pose S> ' prefix for uppercase C: prefix, got: %q", cmd)
+	}
+	if !strings.Contains(cmd, "BTC(Bitcoin)") {
+		t.Errorf("expected crypto result in output, got: %q", cmd)
+	}
+}
+
+func TestCheckLine_CryptoPrefixMixedCase(t *testing.T) {
+	// "C:biTcOin" — upper C:, mixed-case name query
+	search := map[string]interface{}{
+		"coins": []map[string]string{
+			{"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+		},
+	}
+	price := map[string]map[string]float64{
+		"bitcoin": {"usd": 64000.0, "usd_24h_change": 0.5},
+	}
+	srv := newCoinGeckoServer(t, search, price)
+	defer srv.Close()
+
+	app := newCryptoApp(t, srv.URL)
+	cmd, err := app.checkLineForRegexps(`[Dino(#1234)] Dino says "gbs C:biTcOin"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(cmd, "pose S> ") {
+		t.Errorf("expected 'pose S> ' prefix, got: %q", cmd)
+	}
+	if !strings.Contains(cmd, "BTC(Bitcoin)") {
+		t.Errorf("expected crypto result in output, got: %q", cmd)
+	}
+}
+
+func TestCheckLine_CryptoNoMatchOnStockLine(t *testing.T) {
+	// A plain stock ticker without c: prefix must NOT route to crypto.
+	// We check that the output does not contain the "24h" crypto label.
+	// (The stock API call will fail with no key, returning a Stock error.)
+	app := newTestApp()
+	cmd, err := app.checkLineForRegexps(`[Dino(#1234)] Dino says "gbs AAPL"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(cmd, "24h") {
+		t.Errorf("stock line should not produce crypto (24h) output, got: %q", cmd)
+	}
+	if strings.HasPrefix(cmd, "pose H>") {
+		t.Errorf("stock line must not trigger horoscope handler, got: %q", cmd)
 	}
 }
