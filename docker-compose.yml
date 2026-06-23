@@ -9,6 +9,7 @@ services:
       - YIRP_APIKEY=${YIRP_APIKEY}
       - WEATHER_APIKEY=${WEATHER_APIKEY}
       - FINNHUB_APIKEY=${FINNHUB_APIKEY}
+      - COINGECKO_APIKEY=${COINGECKO_APIKEY}
     networks:
       - xephyr
 

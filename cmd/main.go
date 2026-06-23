@@ -27,8 +27,10 @@ type config struct {
 	yirpapikey    string
 	username      string
 	password      string
-	weatherapikey string
-	finnhubapikey string
+	weatherapikey    string
+	finnhubapikey    string
+	coingeckoapikey  string
+	coingeckoBaseURL string
 }
 
 type application struct {
@@ -53,6 +55,8 @@ func main() {
 	cfg.yirpapikey = os.Getenv("YIRP_APIKEY")
 	cfg.weatherapikey = os.Getenv("WEATHER_APIKEY")
 	cfg.finnhubapikey = os.Getenv("FINNHUB_APIKEY")
+	cfg.coingeckoapikey = os.Getenv("COINGECKO_APIKEY")
+	cfg.coingeckoBaseURL = "https://api.coingecko.com/api/v3"
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -141,6 +145,14 @@ type FinnhubSearchResponse struct {
 		Symbol      string `json:"symbol"`
 		Type        string `json:"type"`
 	} `json:"result"`
+}
+
+type CoinGeckoSearchResponse struct {
+	Coins []struct {
+		ID     string `json:"id"`
+		Symbol string `json:"symbol"`
+		Name   string `json:"name"`
+	} `json:"coins"`
 }
 
 func (app *application) translateText(sourceLang, targetLang, text string) (string, error) {
@@ -363,6 +375,109 @@ func (app *application) getStockQuote(query string) (string, error) {
 		changeSign, quoteResponse.D,
 		changeSign, quoteResponse.Dp)
 	return result, nil
+}
+
+func formatUSD(price float64) string {
+	intPart := int(price)
+	frac := fmt.Sprintf("%.2f", price-float64(intPart))[1:] // ".xx"
+	return "$" + formatWithCommas(intPart) + frac
+}
+
+func (app *application) getCryptoQuote(query string) (string, error) {
+	query = strings.TrimSpace(query)
+
+	searchURL := app.config.coingeckoBaseURL + "/search?query=" + url.QueryEscape(query)
+	req, err := http.NewRequest("GET", searchURL, nil)
+	if err != nil {
+		return "", err
+	}
+	if app.config.coingeckoapikey != "" {
+		req.Header.Set("x-cg-demo-api-key", app.config.coingeckoapikey)
+	}
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		app.errorLog.Printf("crypto search request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		return fmt.Sprintf("Crypto error: search API returned code %d\n", res.StatusCode), nil
+	}
+
+	var searchResp CoinGeckoSearchResponse
+	if err := json.NewDecoder(res.Body).Decode(&searchResp); err != nil {
+		app.errorLog.Printf("crypto search parse failed: %s", err)
+		return "", err
+	}
+
+	if len(searchResp.Coins) == 0 {
+		return fmt.Sprintf("Crypto error: no results found for '%s'\n", query), nil
+	}
+
+	// Start with CoinGecko's top-ranked result.
+	// For short ticker-style queries (<=5 chars), also scan for an exact symbol match —
+	// but skip this for longer name-style queries like "bitcoin" to avoid meme coins
+	// that happen to use the name as their symbol (e.g. harrypotterobamasonic10in -> BITCOIN).
+	coinID := searchResp.Coins[0].ID
+	coinSymbol := strings.ToUpper(searchResp.Coins[0].Symbol)
+	coinName := searchResp.Coins[0].Name
+	if len(query) <= 5 {
+		upperQuery := strings.ToUpper(query)
+		for _, c := range searchResp.Coins {
+			if strings.ToUpper(c.Symbol) == upperQuery {
+				coinID = c.ID
+				coinSymbol = strings.ToUpper(c.Symbol)
+				coinName = c.Name
+				break
+			}
+		}
+	}
+
+	priceURL := fmt.Sprintf(
+		app.config.coingeckoBaseURL+"/simple/price?ids=%s&vs_currencies=usd&include_24hr_change=true",
+		url.QueryEscape(coinID),
+	)
+	req, err = http.NewRequest("GET", priceURL, nil)
+	if err != nil {
+		return "", err
+	}
+	if app.config.coingeckoapikey != "" {
+		req.Header.Set("x-cg-demo-api-key", app.config.coingeckoapikey)
+	}
+
+	res, err = client.Do(req)
+	if err != nil {
+		app.errorLog.Printf("crypto price request failed: %s", err)
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		return fmt.Sprintf("Crypto error: price API returned code %d\n", res.StatusCode), nil
+	}
+
+	var priceResp map[string]map[string]float64
+	if err := json.NewDecoder(res.Body).Decode(&priceResp); err != nil {
+		app.errorLog.Printf("crypto price parse failed: %s", err)
+		return "", err
+	}
+
+	coinData, ok := priceResp[coinID]
+	if !ok {
+		return fmt.Sprintf("Crypto error: no price data for '%s'\n", query), nil
+	}
+
+	price := coinData["usd"]
+	change24h := coinData["usd_24h_change"]
+	changeSign := ""
+	if change24h >= 0 {
+		changeSign = "+"
+	}
+
+	return fmt.Sprintf("%s(%s): %s (%s%.2f%%%% 24h)\n", coinSymbol, coinName, formatUSD(price), changeSign, change24h), nil
 }
 
 func (app *application) sendUrlToYirp(url string) (string, error) {
@@ -1528,13 +1643,24 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 					continue
 				}
 
-				response, err := app.getStockQuote(sym)
-				if err != nil {
-					fmt.Println("GBS request fail")
-					fmt.Println(err)
-					response = "Error: stock quote api call failed.\n"
+				if strings.HasPrefix(strings.ToLower(sym), "c:") {
+					cryptoQuery := sym[2:]
+					response, err := app.getCryptoQuote(cryptoQuery)
+					if err != nil {
+						fmt.Println("GBC request fail")
+						fmt.Println(err)
+						response = "Error: crypto quote api call failed.\n"
+					}
+					commands = append(commands, "pose S> "+response)
+				} else {
+					response, err := app.getStockQuote(sym)
+					if err != nil {
+						fmt.Println("GBS request fail")
+						fmt.Println(err)
+						response = "Error: stock quote api call failed.\n"
+					}
+					commands = append(commands, "pose S> "+response)
 				}
-				commands = append(commands, "pose S> "+response)
 			}
 
 			return strings.Join(commands, ""), nil
