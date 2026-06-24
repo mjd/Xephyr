@@ -607,7 +607,7 @@ func TestGetCryptoQuote_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "BTC(Bitcoin): $63,995.00 (+0.21%% 24h)\n"
+	want := "BTC(Bitcoin): $63,995.00 +134.11 (+0.21%% 24h)\n"
 	if result != want {
 		t.Errorf("getCryptoQuote() = %q, want %q", result, want)
 	}
@@ -630,9 +630,42 @@ func TestGetCryptoQuote_OutputFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "ETH(Ethereum): $1,728.58 (-0.12%% 24h)\n"
+	want := "ETH(Ethereum): $1,728.58 -2.08 (-0.12%% 24h)\n"
 	if result != want {
 		t.Errorf("getCryptoQuote() format mismatch:\n  got  %q\n  want %q", result, want)
+	}
+}
+
+func TestGetCryptoQuote_DeltaComputed(t *testing.T) {
+	// Delta must be derived from price and 24h pct: delta = price - price/(1+pct/100).
+	// Verify both positive and negative cases appear between the price and the parens.
+	cases := []struct {
+		sym, id, name string
+		price, pct    float64
+		wantDelta     string
+	}{
+		{"BTC", "bitcoin", "Bitcoin", 63995.0, 0.21, "+134.11"},
+		{"ETH", "ethereum", "Ethereum", 1728.58, -0.12, "-2.08"},
+		{"SOL", "solana", "Solana", 150.0, 5.0, "+7.14"},
+	}
+	for _, tc := range cases {
+		search := map[string]interface{}{
+			"coins": []map[string]string{
+				{"id": tc.id, "symbol": tc.sym, "name": tc.name},
+			},
+		}
+		price := map[string]map[string]float64{
+			tc.id: {"usd": tc.price, "usd_24h_change": tc.pct},
+		}
+		srv := newCoinGeckoServer(t, search, price)
+		result, err := newCryptoApp(t, srv.URL).getCryptoQuote(tc.sym)
+		srv.Close()
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", tc.sym, err)
+		}
+		if !strings.Contains(result, tc.wantDelta+" (") {
+			t.Errorf("%s: expected delta %q before paren, got: %q", tc.sym, tc.wantDelta, result)
+		}
 	}
 }
 

@@ -472,12 +472,13 @@ func (app *application) getCryptoQuote(query string) (string, error) {
 
 	price := coinData["usd"]
 	change24h := coinData["usd_24h_change"]
+	delta := price - price/(1+change24h/100)
 	changeSign := ""
 	if change24h >= 0 {
 		changeSign = "+"
 	}
 
-	return fmt.Sprintf("%s(%s): %s (%s%.2f%%%% 24h)\n", coinSymbol, coinName, formatUSD(price), changeSign, change24h), nil
+	return fmt.Sprintf("%s(%s): %s %s%.2f (%s%.2f%%%% 24h)\n", coinSymbol, coinName, formatUSD(price), changeSign, delta, changeSign, change24h), nil
 }
 
 func (app *application) sendUrlToYirp(url string) (string, error) {
