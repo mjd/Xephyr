@@ -538,6 +538,45 @@ func TestGenerateHoroscope_OutputIsASCII(t *testing.T) {
 	}
 }
 
+// ── parseLatLon ──────────────────────────────────────────────────────────────
+
+func TestParseLatLon(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		// colon separator – various sign combinations
+		{"48.8566:2.3522", "48.8566,2.3522"},
+		{"-33.8688:151.2093", "-33.8688,151.2093"},
+		{"40.7128:-74.0060", "40.7128,-74.0060"},  // NYC: positive lat, negative lon
+		{"-54.8019:-68.3030", "-54.8019,-68.3030"}, // both negative
+		{"0:0", "0,0"},
+		// space separator
+		{"48.8566 2.3522", "48.8566,2.3522"},
+		{"-33.8688 151.2093", "-33.8688,151.2093"},
+		{"40.7128 -74.0060", "40.7128,-74.0060"},
+		// integers as coords
+		{"51 0", "51,0"},
+		{"90:-180", "90,-180"}, // boundary values
+		// extra whitespace is trimmed
+		{"  48.8566 : 2.3522 ", "48.8566,2.3522"},
+		// not lat/lon — pass through unchanged
+		{"New York", "New York"},
+		{"Paris, France", "Paris, France"},
+		{"London", "London"},
+		{"48.8566", "48.8566"},                     // single float, no separator
+		{"abc:def", "abc:def"},                     // non-numeric
+		{"48.8566:not_a_float", "48.8566:not_a_float"}, // mixed valid:invalid
+		{"not_a_float:2.3522", "not_a_float:2.3522"},   // invalid:valid
+	}
+	for _, tc := range cases {
+		got := parseLatLon(tc.in)
+		if got != tc.want {
+			t.Errorf("parseLatLon(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 // ── formatUSD ─────────────────────────────────────────────────────────────────
 
 func TestFormatUSD(t *testing.T) {
