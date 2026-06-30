@@ -236,6 +236,24 @@ func (app *application) translateText(sourceLang, targetLang, text string) (stri
 	return translatedText, nil
 }
 
+// parseLatLon detects "float:float" or "float float" and normalises to "lat,lon"
+// so weatherapi.com can resolve it as coordinates.
+func parseLatLon(s string) string {
+	for _, sep := range []string{":", " "} {
+		parts := strings.SplitN(s, sep, 2)
+		if len(parts) == 2 {
+			lat := strings.TrimSpace(parts[0])
+			lon := strings.TrimSpace(parts[1])
+			if _, err1 := strconv.ParseFloat(lat, 64); err1 == nil {
+				if _, err2 := strconv.ParseFloat(lon, 64); err2 == nil {
+					return lat + "," + lon
+				}
+			}
+		}
+	}
+	return s
+}
+
 func (app *application) sendWeatherRequest(query string) (string, error) {
 	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=" + app.config.weatherapikey + "&q=" + query + "&aqi=no")
 
@@ -1610,6 +1628,7 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 				if loc == "" {
 					continue
 				}
+				loc = parseLatLon(loc)
 				query := url.QueryEscape(loc)
 
 				response, err := app.sendWeatherRequest(query)
