@@ -577,6 +577,126 @@ func TestParseLatLon(t *testing.T) {
 	}
 }
 
+// ── aqiSub ───────────────────────────────────────────────────────────────────
+
+func TestAqiSub_Interpolation(t *testing.T) {
+	bps := []aqiBP{{0, 10, 0, 50}, {10.1, 20, 51, 100}}
+	cases := []struct {
+		c    float64
+		want int
+	}{
+		{0, 0},
+		{5, 25},   // midpoint: (50/10)*5 = 25
+		{10, 50},  // top of first bracket
+		{15, 75},  // mid second bracket: (49/9.9)*4.9+51 ≈ 75
+		{20, 100}, // top of second bracket
+		{21, 500}, // beyond table
+	}
+	for _, tc := range cases {
+		got := aqiSub(tc.c, bps)
+		if got != tc.want {
+			t.Errorf("aqiSub(%v) = %d, want %d", tc.c, got, tc.want)
+		}
+	}
+}
+
+// ── aqiLabel ─────────────────────────────────────────────────────────────────
+
+func TestAqiLabel(t *testing.T) {
+	cases := []struct {
+		aqi  int
+		want string
+	}{
+		{0, "Good"},
+		{50, "Good"},
+		{51, "Moderate"},
+		{100, "Moderate"},
+		{101, "Unhealthy(SG)"},
+		{150, "Unhealthy(SG)"},
+		{151, "Unhealthy"},
+		{200, "Unhealthy"},
+		{201, "VeryUnhealthy"},
+		{300, "VeryUnhealthy"},
+		{301, "Hazardous"},
+		{500, "Hazardous"},
+	}
+	for _, tc := range cases {
+		got := aqiLabel(tc.aqi)
+		if got != tc.want {
+			t.Errorf("aqiLabel(%d) = %q, want %q", tc.aqi, got, tc.want)
+		}
+	}
+}
+
+// ── computeAQI ───────────────────────────────────────────────────────────────
+
+func TestComputeAQI_AllZero(t *testing.T) {
+	if got := computeAQI(0, 0, 0, 0, 0, 0); got != 0 {
+		t.Errorf("computeAQI(all zero) = %d, want 0", got)
+	}
+}
+
+func TestComputeAQI_PM25Breakpoints(t *testing.T) {
+	// At the top of each PM2.5 bracket the formula simplifies to exactly iHi.
+	cases := []struct {
+		pm25 float64
+		want int
+	}{
+		{12.0, 50},   // top of Good
+		{35.4, 100},  // top of Moderate
+		{55.4, 150},  // top of Unhealthy(SG)
+		{150.4, 200}, // top of Unhealthy
+		{250.4, 300}, // top of VeryUnhealthy
+		{350.4, 400}, // top of first Hazardous bracket
+	}
+	for _, tc := range cases {
+		got := computeAQI(tc.pm25, 0, 0, 0, 0, 0)
+		if got != tc.want {
+			t.Errorf("computeAQI(pm25=%.1f) = %d, want %d", tc.pm25, got, tc.want)
+		}
+	}
+}
+
+func TestComputeAQI_DominantPollutant(t *testing.T) {
+	// PM2.5=6 → sub-index ~25 (Good); PM10=80 → sub-index ~63 (Moderate).
+	// Result must be the higher one, in the Moderate band.
+	got := computeAQI(6, 80, 0, 0, 0, 0)
+	if got < 51 || got > 100 {
+		t.Errorf("computeAQI dominant PM10: got %d, want in Moderate range [51,100]", got)
+	}
+}
+
+func TestComputeAQI_AboveTable(t *testing.T) {
+	if got := computeAQI(600, 0, 0, 0, 0, 0); got != 500 {
+		t.Errorf("computeAQI(pm25=600) = %d, want 500", got)
+	}
+}
+
+func TestComputeAQI_UnitConversions(t *testing.T) {
+	// Each gas at exactly the top of its Good bracket expressed in μg/m³.
+	// Correct unit conversions produce AQI 50 for each.
+	cases := []struct {
+		label              string
+		pm25, pm10, o3, no2, so2, co float64
+		want               int
+	}{
+		// O3:  54 ppb × 1.96 μg/m³/ppb = 105.84 μg/m³
+		{"O3 top-of-Good", 0, 0, 105.84, 0, 0, 0, 50},
+		// NO2: 53 ppb × 1.88 = 99.64 μg/m³
+		{"NO2 top-of-Good", 0, 0, 0, 99.64, 0, 0, 50},
+		// SO2: 35 ppb × 2.62 = 91.70 μg/m³
+		{"SO2 top-of-Good", 0, 0, 0, 0, 91.70, 0, 50},
+		// CO:  4.4 ppm × 1145 μg/m³/ppm = 5038 μg/m³
+		{"CO top-of-Good", 0, 0, 0, 0, 0, 5038, 50},
+	}
+	for _, tc := range cases {
+		got := computeAQI(tc.pm25, tc.pm10, tc.o3, tc.no2, tc.so2, tc.co)
+		if got != tc.want {
+			t.Errorf("%s: computeAQI = %d, want %d", tc.label, got, tc.want)
+		}
+	}
+}
+
 // ── formatUSD ─────────────────────────────────────────────────────────────────
 
 func TestFormatUSD(t *testing.T) {
