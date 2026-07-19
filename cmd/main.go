@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -121,10 +122,19 @@ type WeatherAPIResponse struct {
 		Condition    struct {
 			Text string `json:"text"`
 		} `json:"condition"`
-		Wind_mph float64 `json:"wind_mph"`
-		Wind_kph float64 `json:"wind_kph"`
-		Wind_dir string  `json:"wind_dir"`
-		Humidity float64 `json:"humidity"`
+		Wind_mph   float64 `json:"wind_mph"`
+		Wind_kph   float64 `json:"wind_kph"`
+		Wind_dir   string  `json:"wind_dir"`
+		Humidity   float64 `json:"humidity"`
+		AirQuality struct {
+			CO         float64 `json:"co"`
+			NO2        float64 `json:"no2"`
+			O3         float64 `json:"o3"`
+			SO2        float64 `json:"so2"`
+			PM25       float64 `json:"pm2_5"`
+			PM10       float64 `json:"pm10"`
+			USEPAIndex int     `json:"us-epa-index"`
+		} `json:"air_quality"`
 	} `json:"current"`
 }
 
@@ -254,8 +264,65 @@ func parseLatLon(s string) string {
 	return s
 }
 
+type aqiBP struct{ cLo, cHi float64; iLo, iHi int }
+
+func aqiSub(c float64, bps []aqiBP) int {
+	for _, bp := range bps {
+		if c <= bp.cHi {
+			return int(math.Round(float64(bp.iHi-bp.iLo)/(bp.cHi-bp.cLo)*(c-bp.cLo) + float64(bp.iLo)))
+		}
+	}
+	return 500
+}
+
+// computeAQI calculates the US EPA AQI from raw pollutant concentrations
+// returned by weatherapi.com (μg/m³ for all except CO).
+// Concentrations are instantaneous, not time-averaged, so values are approximate.
+func computeAQI(pm25, pm10, o3ugm3, no2ugm3, so2ugm3, coUgm3 float64) int {
+	pm25BPs := []aqiBP{{0.0, 12.0, 0, 50}, {12.1, 35.4, 51, 100}, {35.5, 55.4, 101, 150}, {55.5, 150.4, 151, 200}, {150.5, 250.4, 201, 300}, {250.5, 350.4, 301, 400}, {350.5, 500.4, 401, 500}}
+	pm10BPs := []aqiBP{{0, 54, 0, 50}, {55, 154, 51, 100}, {155, 254, 101, 150}, {255, 354, 151, 200}, {355, 424, 201, 300}, {425, 504, 301, 400}, {505, 604, 401, 500}}
+	o3BPs   := []aqiBP{{0, 54, 0, 50}, {55, 70, 51, 100}, {71, 85, 101, 150}, {86, 105, 151, 200}, {106, 200, 201, 300}}
+	no2BPs  := []aqiBP{{0, 53, 0, 50}, {54, 100, 51, 100}, {101, 360, 101, 150}, {361, 649, 151, 200}, {650, 1249, 201, 300}, {1250, 1649, 301, 400}, {1650, 2049, 401, 500}}
+	so2BPs  := []aqiBP{{0, 35, 0, 50}, {36, 75, 51, 100}, {76, 185, 101, 150}, {186, 304, 151, 200}, {305, 604, 201, 300}, {605, 804, 301, 400}, {805, 1004, 401, 500}}
+	coBPs   := []aqiBP{{0, 4.4, 0, 50}, {4.5, 9.4, 51, 100}, {9.5, 12.4, 101, 150}, {12.5, 15.4, 151, 200}, {15.5, 30.4, 201, 300}, {30.5, 40.4, 301, 400}, {40.5, 50.4, 401, 500}}
+
+	// Convert μg/m³ → ppb/ppm at 25°C, 1 atm
+	o3ppb  := o3ugm3 / 1.96
+	no2ppb := no2ugm3 / 1.88
+	so2ppb := so2ugm3 / 2.62
+	coppm  := coUgm3 / 1145.0
+
+	aqi := 0
+	for _, p := range []struct {
+		c   float64
+		bps []aqiBP
+	}{{pm25, pm25BPs}, {pm10, pm10BPs}, {o3ppb, o3BPs}, {no2ppb, no2BPs}, {so2ppb, so2BPs}, {coppm, coBPs}} {
+		if sub := aqiSub(p.c, p.bps); sub > aqi {
+			aqi = sub
+		}
+	}
+	return aqi
+}
+
+func aqiLabel(aqi int) string {
+	switch {
+	case aqi <= 50:
+		return "Good"
+	case aqi <= 100:
+		return "Moderate"
+	case aqi <= 150:
+		return "Unhealthy(SG)"
+	case aqi <= 200:
+		return "Unhealthy"
+	case aqi <= 300:
+		return "VeryUnhealthy"
+	default:
+		return "Hazardous"
+	}
+}
+
 func (app *application) sendWeatherRequest(query string) (string, error) {
-	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=" + app.config.weatherapikey + "&q=" + query + "&aqi=no")
+	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=" + app.config.weatherapikey + "&q=" + query + "&aqi=yes")
 
 	if err != nil {
 		app.errorLog.Printf("weather request failed: %s", err)
@@ -287,15 +354,22 @@ func (app *application) sendWeatherRequest(query string) (string, error) {
 		fmt.Println("error:", err)
 	}
 
+	aqiStr := ""
+	aq := weatherResponse.Current.AirQuality
+	if aq.USEPAIndex > 0 {
+		aqi := computeAQI(aq.PM25, aq.PM10, aq.O3, aq.NO2, aq.SO2, aq.CO)
+		aqiStr = fmt.Sprintf(" %s:%d", aqiLabel(aqi), aqi)
+	}
+
 	var locationRegion string
 	var result string
 
 	if strings.HasPrefix(weatherResponse.Location.Country, "United States of America") || strings.HasPrefix(weatherResponse.Location.Country, "USA") {
 		locationRegion = weatherResponse.Location.Region
-		result = fmt.Sprintf("%v, %v: %v %.1fF %.1f%%%% %.1fmph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir)
+		result = fmt.Sprintf("%v, %v: %v %.1fF %.1f%%%% %.1fmph %v%s\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir, aqiStr)
 	} else {
 		locationRegion = weatherResponse.Location.Country
-		result = fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_c, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_kph, weatherResponse.Current.Wind_dir)
+		result = fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v%s\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_c, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_kph, weatherResponse.Current.Wind_dir, aqiStr)
 	}
 
 	return result, nil
