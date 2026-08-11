@@ -43,10 +43,10 @@
 &FUNC_DICE_DRIVER gravybot=[setq(9,squish(iter(squish(edit(%0,[v(COMMA)],%b)),u(FUNC_DICE_ONE,##),%b,%b)))][setq(8,filter(me/FUNC_ISNUM,%q9))]%q9[switch(gt(words(%q8),1),1,%b= [ladd(%q8)])]
 &DICE_SHORT gravybot=^* says "gbd *":pose D> [u(FUNC_DICE_DRIVER,%1)]
 &DICE_LONG gravybot=^* says "gravybot dice *":pose D> [u(FUNC_DICE_DRIVER,%1)]
-&DICE_SHORT_NONE gravybot=^* says "gbd":pose D> [u(FUNC_DICE_DRIVER,default(%#/GRAVYBOT_DICE,d20))]
-&DICE_NONE gravybot=^* says "gravybot dice":pose D> [u(FUNC_DICE_DRIVER,default(%#/GRAVYBOT_DICE,d20))]
-&DICE_SHORT_PLAYER gravybot=^* says "gbdp *":pose D> [u(FUNC_DICE_DRIVER,default(%1/GRAVYBOT_DICE,d20))]
-&DICE_PLAYER gravybot=^* says "gravybot dicep *":pose D> [u(FUNC_DICE_DRIVER,default(%1/GRAVYBOT_DICE,d20))]
+&DICE_SHORT_NONE gravybot=^* says "gbd":pose D> [u(FUNC_DICE_DRIVER,default(%#/GRAVYBOT_DICE,d100))]
+&DICE_NONE gravybot=^* says "gravybot dice":pose D> [u(FUNC_DICE_DRIVER,default(%#/GRAVYBOT_DICE,d100))]
+&DICE_SHORT_PLAYER gravybot=^* says "gbdp *":pose D> [u(FUNC_DICE_DRIVER,default(%1/GRAVYBOT_DICE,d100))]
+&DICE_PLAYER gravybot=^* says "gravybot dicep *":pose D> [u(FUNC_DICE_DRIVER,default(%1/GRAVYBOT_DICE,d100))]
 &GHELP_100 gravybot=Send [name(owner(me))] your [name(me)] ideas.
 &GHELP_110 gravybot=%bgurl-show recent Urls.
 &GHELP_120 gravybot=%bgurl <N>-show <N> recent Urls.
