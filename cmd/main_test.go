@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/reiver/go-telnet"
 )
 
 // newTestApp returns a minimal application with discarded logs, suitable for
@@ -1044,5 +1047,136 @@ func TestCheckLine_CryptoNoMatchOnStockLine(t *testing.T) {
 	}
 	if strings.HasPrefix(cmd, "pose H>") {
 		t.Errorf("stock line must not trigger horoscope handler, got: %q", cmd)
+	}
+}
+
+// ── CallTELNET / go-telnet integration ───────────────────────────────────────
+
+// caller must satisfy telnet.Caller for telnet.DialToAndCall in main to
+// compile. go-telnet is an untagged module pinned by pseudo-version, so this
+// assertion turns a future interface change into a clear compile-time failure
+// here rather than an error at the dial site.
+var _ telnet.Caller = caller{}
+
+// newTelnetTestApp returns an application with a real (capturable) info log
+// and the given credentials, plus the buffer its info log writes to.
+func newTelnetTestApp(username, password string) (*application, *bytes.Buffer) {
+	logBuf := &bytes.Buffer{}
+	return &application{
+		config:   config{username: username, password: password},
+		infoLog:  log.New(logBuf, "", 0),
+		errorLog: log.New(io.Discard, "", 0),
+	}, logBuf
+}
+
+// runCallTELNET drives CallTELNET to completion, failing the test rather than
+// hanging the suite if the read loop does not terminate.
+func runCallTELNET(t *testing.T, app *application, r telnet.Reader) string {
+	t.Helper()
+	var out bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		caller{app: *app}.CallTELNET(nil, &out, r)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("CallTELNET did not return; read loop failed to terminate on reader error")
+	}
+	return out.String()
+}
+
+// errReader always fails, exercising the loop's error exit.
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestCallTELNET_WritesConnectHandshake(t *testing.T) {
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	got := runCallTELNET(t, app, strings.NewReader(""))
+	if !strings.HasPrefix(got, "connect gravybot s3cret\n") {
+		t.Errorf("expected connect handshake first, got: %q", got)
+	}
+}
+
+func TestCallTELNET_LogsConnectWithoutPassword(t *testing.T) {
+	app, logBuf := newTelnetTestApp("gravybot", "hunter2")
+	runCallTELNET(t, app, strings.NewReader(""))
+	logged := logBuf.String()
+	if !strings.Contains(logged, "connect gravybot <password>") {
+		t.Errorf("expected redacted connect line in log, got: %q", logged)
+	}
+	if strings.Contains(logged, "hunter2") {
+		t.Errorf("password leaked into info log: %q", logged)
+	}
+}
+
+func TestCallTELNET_LogsUsernameContainingFormatVerbs(t *testing.T) {
+	// Regression: the connect line was logged as
+	//   Printf("connect " + username + " <password>\n")
+	// which fed the username to Printf as part of the format string, so a
+	// username containing a verb was interpreted as formatting instead of
+	// being printed literally.
+	app, logBuf := newTelnetTestApp("bot%s%d%v", "s3cret")
+	runCallTELNET(t, app, strings.NewReader(""))
+	logged := logBuf.String()
+	if !strings.Contains(logged, "connect bot%s%d%v <password>") {
+		t.Errorf("username with format verbs not logged literally: %q", logged)
+	}
+	if strings.Contains(logged, "%!") {
+		t.Errorf("format-verb artifacts in log: %q", logged)
+	}
+}
+
+func TestCallTELNET_DispatchesMatchedLine(t *testing.T) {
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	got := runCallTELNET(t, app, strings.NewReader("[Dino(#1234)] Dino pages: hangout\n"))
+	if !strings.Contains(got, "@@\n") {
+		t.Errorf("expected keepalive in output, got: %q", got)
+	}
+	if !strings.Contains(got, "@dolist me={gautoreturn on;hangout}\n") {
+		t.Errorf("expected hangout command in output, got: %q", got)
+	}
+}
+
+func TestCallTELNET_UnmatchedLineSendsOnlyKeepalive(t *testing.T) {
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	got := runCallTELNET(t, app, strings.NewReader("some random mush output line\n"))
+	rest := strings.TrimPrefix(got, "connect gravybot s3cret\n")
+	if rest != "@@\n" {
+		t.Errorf("expected only keepalive after handshake, got: %q", rest)
+	}
+}
+
+func TestCallTELNET_ProcessesMultipleLines(t *testing.T) {
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	input := "[Dino(#1234)] Dino pages: hangout\n[Dino(#1234)] Dino pages: home\n"
+	got := runCallTELNET(t, app, strings.NewReader(input))
+	if !strings.Contains(got, "@dolist me={gautoreturn on;hangout}\n") {
+		t.Errorf("first line not dispatched: %q", got)
+	}
+	if !strings.Contains(got, "@dolist me={gautoreturn off;home}\n") {
+		t.Errorf("second line not dispatched: %q", got)
+	}
+	if n := strings.Count(got, "@@\n"); n != 2 {
+		t.Errorf("expected 2 keepalives for 2 lines, got %d: %q", n, got)
+	}
+}
+
+func TestCallTELNET_IgnoresUnterminatedTrailingLine(t *testing.T) {
+	// Dispatch is driven by '\n'; a partial line at EOF must not fire.
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	got := runCallTELNET(t, app, strings.NewReader("[Dino(#1234)] Dino pages: hangout"))
+	if strings.Contains(got, "@dolist") {
+		t.Errorf("unterminated line should not dispatch, got: %q", got)
+	}
+}
+
+func TestCallTELNET_TerminatesOnReadError(t *testing.T) {
+	app, _ := newTelnetTestApp("gravybot", "s3cret")
+	got := runCallTELNET(t, app, errReader{})
+	if !strings.HasPrefix(got, "connect gravybot s3cret\n") {
+		t.Errorf("expected handshake before read error, got: %q", got)
 	}
 }
