@@ -1807,7 +1807,7 @@ func (app *application) processUrls(authorID string, urls [][]byte) (string, err
 
 func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader) {
 	var command string = ""
-	c.app.infoLog.Printf("connect " + c.app.config.username + " <password>\n")
+	c.app.infoLog.Printf("connect %s <password>\n", c.app.config.username)
 	w.Write([]byte("connect " + c.app.config.username + " " + c.app.config.password + "\n"))
 
 	var buffer [1]byte // Seems like the length of the buffer needs to be small, otherwise will have to wait for buffer to fill up.
