@@ -13,8 +13,14 @@ import (
 // populated places and matches a ZIP only when GeoNames happened to hang it off
 // one of them, so an outlying code like 81507 finds nothing there even though
 // 81501 through 81506 all resolve to Grand Junction. Its columns are the ZIP,
-// the place it names, the state gbw prints after that place, latitude and
+// the place it names, the region gbw prints after that place, latitude and
 // longitude.
+//
+// GeoNames files the territories as separate countries, so Puerto Rico, the US
+// Virgin Islands, Guam, American Samoa and the Northern Marianas are merged in
+// from their own files. Their region is the territory: the admin1 those files
+// carry is a municipality ("Adjuntas") or a stub ("Vi"), neither of which reads
+// as a place to anyone.
 //
 // Military APO/FPO codes are left out. They route mail rather than name a
 // place, and the one coordinate GeoNames gives "APO AE" is a servicing

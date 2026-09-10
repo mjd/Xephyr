@@ -28,6 +28,8 @@ func TestLiveOpenMeteoSmoke(t *testing.T) {
 		// Grand Junction, and 75001 and 28001 are Addison and Albemarle rather
 		// than the Paris and Madrid codes sharing their digits.
 		"80202", "81507", "81523", "75001", "28001",
+		// Territories come from GeoNames' separate country files.
+		"00901", "96910",
 		// The three coordinate tiers: named outright, named as a landmark,
 		// and too far from anywhere to name at all.
 		parseLatLon("39.7392 -104.9903"),

@@ -195,3 +195,56 @@ func TestReverseGeocode_ZeroPopulationStillNamesTheLonely(t *testing.T) {
 		t.Errorf("got %q (%v), want Ngerulmud, Palau", got, ok)
 	}
 }
+
+// Whatever coordinates come in, the label has to be a real city from the table
+// that is genuinely within range, and the "near" qualifier has to track which
+// side of nameRadiusKm it fell on. A grid covers ground no hand-picked case
+// does -- oceans, ice caps, the antimeridian, both poles.
+func TestReverseGeocode_LabelInvariants(t *testing.T) {
+	type key struct{ name, region string }
+	byName := make(map[key][]city)
+	for _, place := range loadCities() {
+		k := key{place.Name, place.Region}
+		byName[k] = append(byName[k], place)
+	}
+
+	for lat := -85.0; lat <= 85.0; lat += 7.5 {
+		for lon := -180.0; lon < 180.0; lon += 11.25 {
+			label, ok := reverseGeocode(lat, lon)
+			if !ok {
+				if label != "" {
+					t.Fatalf("(%v,%v) returned %q alongside a false", lat, lon, label)
+				}
+				continue
+			}
+
+			qualified := strings.HasPrefix(label, "near ")
+			name, region, found := strings.Cut(strings.TrimPrefix(label, "near "), ", ")
+			if !found {
+				t.Fatalf("(%v,%v) = %q, want a %q form", lat, lon, label, "Place, Region")
+			}
+
+			candidates := byName[key{name, region}]
+			if len(candidates) == 0 {
+				t.Fatalf("(%v,%v) = %q, which is not in the city table", lat, lon, label)
+			}
+
+			// Any one of the same-named candidates may be the match, so the
+			// closest of them is the one to hold to the radius.
+			best := math.Inf(1)
+			for _, candidate := range candidates {
+				if d := haversineKm(lat, lon, candidate.Latitude, candidate.Longitude); d < best {
+					best = d
+				}
+			}
+			switch {
+			case best > nearRadiusKm:
+				t.Fatalf("(%v,%v) = %q at %.0fkm, past the %dkm ceiling", lat, lon, label, best, nearRadiusKm)
+			case qualified && best <= 0:
+				t.Fatalf("(%v,%v) = %q, qualified despite sitting on the city", lat, lon, label)
+			case !qualified && best > nameRadiusKm:
+				t.Fatalf("(%v,%v) = %q at %.0fkm, unqualified past the %dkm name radius", lat, lon, label, best, nameRadiusKm)
+			}
+		}
+	}
+}

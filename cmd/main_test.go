@@ -1956,3 +1956,18 @@ func TestSendWeatherRequest_UnlistedZip(t *testing.T) {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
+
+// A territory ZIP has to print its territory where a state would go, so
+// "San Juan, Puerto Rico" reads the way "Denver, Colorado" does.
+func TestSendWeatherRequest_TerritoryZip(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("00901")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "San Juan, Puerto Rico: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}

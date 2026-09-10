@@ -146,3 +146,73 @@ func keysOfPostal(m map[string]postalPlace) []string {
 	}
 	return keys
 }
+
+// GeoNames files the territories as separate countries, so they are merged in
+// from their own files and would be the easiest thing in the table to lose.
+// 00901 and 00802 returned nothing at all before this table existed.
+func TestLookupPostalCode_Territories(t *testing.T) {
+	cases := []struct {
+		code      string
+		wantName  string
+		wantState string
+	}{
+		{"00901", "San Juan", "Puerto Rico"},
+		{"00680", "Mayaguez", "Puerto Rico"},
+		{"00802", "St Thomas", "U.S. Virgin Islands"},
+		{"96910", "Hagatna", "Guam"},
+		{"96799", "Pago Pago", "American Samoa"},
+		{"96951", "Rota", "Northern Mariana Islands"},
+	}
+	for _, tc := range cases {
+		found, ok := lookupPostalCode(tc.code)
+		if !ok {
+			t.Errorf("lookupPostalCode(%q) found nothing, want %s", tc.code, tc.wantName)
+			continue
+		}
+		if found.Name != tc.wantName || found.State != tc.wantState {
+			t.Errorf("lookupPostalCode(%q) = %q/%q, want %q/%q",
+				tc.code, found.Name, found.State, tc.wantName, tc.wantState)
+		}
+	}
+}
+
+// Every territory has to survive a regeneration of the table, not just the one
+// or two that happen to be spot-checked above.
+func TestPostalTable_CoversEveryTerritory(t *testing.T) {
+	want := []string{"Puerto Rico", "U.S. Virgin Islands", "Guam", "American Samoa", "Northern Mariana Islands"}
+
+	seen := make(map[string]int)
+	for _, place := range loadPostalCodes() {
+		seen[place.State]++
+	}
+	for _, region := range want {
+		if seen[region] == 0 {
+			t.Errorf("no ZIPs in the table for %s", region)
+		}
+	}
+}
+
+// A ZIP is text, not a number. Anything that parses one as an integer along the
+// way turns 01001 into 1001, which is a different place in a different state.
+func TestLookupPostalCode_LeadingZeros(t *testing.T) {
+	cases := []struct {
+		code      string
+		wantName  string
+		wantState string
+	}{
+		{"01001", "Agawam", "Massachusetts"},
+		{"02139", "Cambridge", "Massachusetts"},
+		{"00901", "San Juan", "Puerto Rico"},
+	}
+	for _, tc := range cases {
+		found, ok := lookupPostalCode(tc.code)
+		if !ok || found.Name != tc.wantName || found.State != tc.wantState {
+			t.Errorf("lookupPostalCode(%q) = %q/%q (%v), want %q/%q",
+				tc.code, found.Name, found.State, ok, tc.wantName, tc.wantState)
+		}
+	}
+	// The truncated form must not quietly resolve to something else.
+	if found, ok := lookupPostalCode("1001"); ok {
+		t.Errorf("lookupPostalCode(1001) = %q, want no match for a four digit code", found.Name)
+	}
+}
