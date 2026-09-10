@@ -606,10 +606,15 @@ func (app *application) sendWeatherRequest(loc string) (string, error) {
 	condition := weatherCodeText(current.WeatherCode)
 	windDir := windCompass(current.WindDirection)
 
-	// Open-Meteo has no reverse geocoder, so a coordinate query has no place
-	// name to print and the coordinates stand in for one.
 	label := loc
-	if !coords {
+	if coords {
+		// Open-Meteo has no reverse geocoder, so a coordinate is named from the
+		// embedded city table. Somewhere with no city within range -- open
+		// ocean, deep wilderness -- keeps the coordinates as its label.
+		if named, ok := reverseGeocode(place.Latitude, place.Longitude); ok {
+			label = named
+		}
+	} else {
 		region := place.Country
 		if place.CountryCode == "US" {
 			region = place.Admin1

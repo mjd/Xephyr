@@ -1384,7 +1384,8 @@ func TestSendWeatherRequest_NonUSUsesTheCountryAsRegion(t *testing.T) {
 }
 
 // Coordinates skip the geocoder entirely, so the stub would fail the test if
-// they did not: it answers every lookup with no results.
+// they did not: it answers every lookup with no results. The name comes off the
+// embedded city table instead.
 func TestSendWeatherRequest_Coordinates(t *testing.T) {
 	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
 
@@ -1392,7 +1393,7 @@ func TestSendWeatherRequest_Coordinates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	want := "39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	want := "Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
@@ -1795,7 +1796,7 @@ func TestCheckLine_WeatherLatLonPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "pose W> 39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	want := "pose W> Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if cmd != want {
 		t.Errorf("got  %q\nwant %q", cmd, want)
 	}
