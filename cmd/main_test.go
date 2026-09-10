@@ -1384,7 +1384,8 @@ func TestSendWeatherRequest_NonUSUsesTheCountryAsRegion(t *testing.T) {
 }
 
 // Coordinates skip the geocoder entirely, so the stub would fail the test if
-// they did not: it answers every lookup with no results.
+// they did not: it answers every lookup with no results. The name comes off the
+// embedded city table instead.
 func TestSendWeatherRequest_Coordinates(t *testing.T) {
 	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
 
@@ -1392,7 +1393,7 @@ func TestSendWeatherRequest_Coordinates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	want := "39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	want := "Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
@@ -1548,21 +1549,21 @@ func TestSendWeatherRequest_AlwaysShowsBothUnits(t *testing.T) {
 	}
 }
 
-// The geocoder indexes postal codes alongside place names, so a bare zip has
-// to reach it intact rather than being mistaken for a coordinate.
+// A bare zip has to survive coordinate parsing and come back off the embedded
+// table, without the geocoder being consulted at all.
 func TestSendWeatherRequest_ZipCode(t *testing.T) {
-	var asked string
+	var asked []string
 	app := newOpenMeteoApp(t, func(name string) string {
-		asked = name
-		return `{"results":[{"name":"Denver","latitude":39.74,"longitude":-104.98,"country_code":"US","country":"United States","admin1":"Colorado"}]}`
+		asked = append(asked, name)
+		return `{}`
 	}, stubForecast, stubAirQuality)
 
 	got, err := app.sendWeatherRequest("80202")
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	if asked != "80202" {
-		t.Errorf("geocoder asked for %q, want the zip unaltered", asked)
+	if len(asked) != 0 {
+		t.Errorf("geocoder called with %v, want the zip settled from the table", asked)
 	}
 	if !strings.HasPrefix(got, "Denver, Colorado:") {
 		t.Errorf("got %q, want the zip resolved to Denver", got)
@@ -1795,7 +1796,7 @@ func TestCheckLine_WeatherLatLonPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "pose W> 39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	want := "pose W> Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if cmd != want {
 		t.Errorf("got  %q\nwant %q", cmd, want)
 	}
@@ -1871,5 +1872,102 @@ func TestFetchUSAQI_TruncatedBody(t *testing.T) {
 
 	if _, found, err := app.fetchUSAQI(51.5, -0.13); err == nil || found {
 		t.Errorf("fetchUSAQI = (found %v, err %v), want a failure", found, err)
+	}
+}
+
+// ── ZIP fallback ─────────────────────────────────────────────────────────────
+
+// The gap the table exists to close: the geocoder carries 81501 through 81506
+// but not 81507, so an unlisted ZIP has to come off the embedded table with its
+// own coordinates rather than the city's -- without a geocoder round trip.
+func TestResolvePlace_ZipResolvesFromTable(t *testing.T) {
+	var asked []string
+	app := newOpenMeteoApp(t, func(name string) string {
+		asked = append(asked, name)
+		return `{}`
+	}, stubForecast, stubAirQuality)
+
+	place, found, err := app.resolvePlace("81507")
+	if err != nil {
+		t.Fatalf("resolvePlace: %v", err)
+	}
+	if !found {
+		t.Fatal("resolvePlace(81507) found nothing, want the ZIP table to answer")
+	}
+	if place.Name != "Grand Junction" || place.Admin1 != "Colorado" {
+		t.Errorf("got %q/%q, want Grand Junction/Colorado", place.Name, place.Admin1)
+	}
+	if place.Latitude != 39.0157 || place.Longitude != -108.6129 {
+		t.Errorf("got %v,%v, want the ZIP's own 39.0157,-108.6129", place.Latitude, place.Longitude)
+	}
+	if len(asked) != 0 {
+		t.Errorf("geocoder called %d times (%v), want the table to answer without one", len(asked), asked)
+	}
+}
+
+// Five digit codes are not ours alone: 75001 is Paris as well as Addison,
+// Texas, and 28001 is Madrid as well as Albemarle, North Carolina. A bare five
+// digit number is read as a US ZIP, so the table answers even when the
+// geocoder would happily have named the foreign city.
+func TestResolvePlace_ZipTableOutranksGeocoder(t *testing.T) {
+	var asked []string
+	app := newOpenMeteoApp(t, func(name string) string {
+		asked = append(asked, name)
+		return `{"results":[{"name":"Paris","latitude":48.85,"longitude":2.35,"country_code":"FR","country":"France"}]}`
+	}, stubForecast, stubAirQuality)
+
+	place, found, err := app.resolvePlace("75001")
+	if err != nil {
+		t.Fatalf("resolvePlace: %v", err)
+	}
+	if !found || place.Name != "Addison" || place.Admin1 != "Texas" {
+		t.Errorf("got %q/%q, want Addison/Texas rather than the Paris arrondissement",
+			place.Name, place.Admin1)
+	}
+	if len(asked) != 0 {
+		t.Errorf("geocoder called %d times (%v), want the ZIP settled locally", len(asked), asked)
+	}
+}
+
+// The table must not turn a genuine miss into a wrong answer.
+func TestResolvePlace_MissIsStillAMiss(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	for _, loc := range []string{"nowheresville", "00000", "8150"} {
+		place, found, err := app.resolvePlace(loc)
+		if err != nil {
+			t.Fatalf("resolvePlace(%q): %v", loc, err)
+		}
+		if found {
+			t.Errorf("resolvePlace(%q) = %q, want no match", loc, place.Name)
+		}
+	}
+}
+
+func TestSendWeatherRequest_UnlistedZip(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("81507")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "Grand Junction, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
+// A territory ZIP has to print its territory where a state would go, so
+// "San Juan, Puerto Rico" reads the way "Denver, Colorado" does.
+func TestSendWeatherRequest_TerritoryZip(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("00901")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "San Juan, Puerto Rico: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }

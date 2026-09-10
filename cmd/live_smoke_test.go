@@ -24,7 +24,17 @@ func TestLiveOpenMeteoSmoke(t *testing.T) {
 		"denver co", "london england", "london", "paris france",
 		"salt lake city utah", "tokyo", "dino", "vars ontario",
 		"LHR", "den", "iata:NRT", "NYC", "SYD", "GIG", "ZZZ",
+		// A bare five digit number is a US ZIP: 80202 and 81507 are Denver and
+		// Grand Junction, and 75001 and 28001 are Addison and Albemarle rather
+		// than the Paris and Madrid codes sharing their digits.
+		"80202", "81507", "81523", "75001", "28001",
+		// Territories come from GeoNames' separate country files.
+		"00901", "96910",
+		// The three coordinate tiers: named outright, named as a landmark,
+		// and too far from anywhere to name at all.
 		parseLatLon("39.7392 -104.9903"),
+		parseLatLon("44.0 -107.5"),
+		parseLatLon("0 -140"),
 	} {
 		got, err := app.sendWeatherRequest(loc)
 		if err != nil {

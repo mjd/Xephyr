@@ -434,7 +434,8 @@ func (app *application) geocodeSearch(name string, count int) ([]OpenMeteoPlace,
 // resolvePlace turns a free-form location into a single geocoding hit. The
 // geocoder indexes bare place names, so "london england" finds nothing on the
 // first attempt; the retries shorten the name from the right and treat the
-// words dropped as a state or country qualifier.
+// words dropped as a state or country qualifier. Airport codes and US ZIPs are
+// resolved from embedded tables before the geocoder is asked at all.
 func (app *application) resolvePlace(loc string) (OpenMeteoPlace, bool, error) {
 	loc = strings.TrimSpace(loc)
 	if loc == "" {
@@ -443,6 +444,13 @@ func (app *application) resolvePlace(loc string) (OpenMeteoPlace, bool, error) {
 
 	// Airport codes are looked up locally; the geocoder has no notion of them.
 	if found, ok := lookupAirport(loc); ok {
+		return found.place(), true, nil
+	}
+
+	// So are US ZIPs, and they are answered before the geocoder is asked. Five
+	// digit codes are not ours alone -- 75001 is Paris as well as Addison,
+	// Texas -- and this bot reads a bare five digit number as a US ZIP.
+	if found, ok := lookupPostalCode(loc); ok {
 		return found.place(), true, nil
 	}
 
@@ -598,10 +606,15 @@ func (app *application) sendWeatherRequest(loc string) (string, error) {
 	condition := weatherCodeText(current.WeatherCode)
 	windDir := windCompass(current.WindDirection)
 
-	// Open-Meteo has no reverse geocoder, so a coordinate query has no place
-	// name to print and the coordinates stand in for one.
 	label := loc
-	if !coords {
+	if coords {
+		// Open-Meteo has no reverse geocoder, so a coordinate is named from the
+		// embedded city table. Somewhere with no city within range -- open
+		// ocean, deep wilderness -- keeps the coordinates as its label.
+		if named, ok := reverseGeocode(place.Latitude, place.Longitude); ok {
+			label = named
+		}
+	} else {
 		region := place.Country
 		if place.CountryCode == "US" {
 			region = place.Admin1
