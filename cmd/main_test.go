@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -551,7 +552,7 @@ func TestParseLatLon(t *testing.T) {
 		// colon separator – various sign combinations
 		{"48.8566:2.3522", "48.8566,2.3522"},
 		{"-33.8688:151.2093", "-33.8688,151.2093"},
-		{"40.7128:-74.0060", "40.7128,-74.0060"},  // NYC: positive lat, negative lon
+		{"40.7128:-74.0060", "40.7128,-74.0060"},   // NYC: positive lat, negative lon
 		{"-54.8019:-68.3030", "-54.8019,-68.3030"}, // both negative
 		{"0:0", "0,0"},
 		// space separator
@@ -567,8 +568,8 @@ func TestParseLatLon(t *testing.T) {
 		{"New York", "New York"},
 		{"Paris, France", "Paris, France"},
 		{"London", "London"},
-		{"48.8566", "48.8566"},                     // single float, no separator
-		{"abc:def", "abc:def"},                     // non-numeric
+		{"48.8566", "48.8566"},                         // single float, no separator
+		{"abc:def", "abc:def"},                         // non-numeric
 		{"48.8566:not_a_float", "48.8566:not_a_float"}, // mixed valid:invalid
 		{"not_a_float:2.3522", "not_a_float:2.3522"},   // invalid:valid
 	}
@@ -576,29 +577,6 @@ func TestParseLatLon(t *testing.T) {
 		got := parseLatLon(tc.in)
 		if got != tc.want {
 			t.Errorf("parseLatLon(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-// ── aqiSub ───────────────────────────────────────────────────────────────────
-
-func TestAqiSub_Interpolation(t *testing.T) {
-	bps := []aqiBP{{0, 10, 0, 50}, {10.1, 20, 51, 100}}
-	cases := []struct {
-		c    float64
-		want int
-	}{
-		{0, 0},
-		{5, 25},   // midpoint: (50/10)*5 = 25
-		{10, 50},  // top of first bracket
-		{15, 75},  // mid second bracket: (49/9.9)*4.9+51 ≈ 75
-		{20, 100}, // top of second bracket
-		{21, 500}, // beyond table
-	}
-	for _, tc := range cases {
-		got := aqiSub(tc.c, bps)
-		if got != tc.want {
-			t.Errorf("aqiSub(%v) = %d, want %d", tc.c, got, tc.want)
 		}
 	}
 }
@@ -627,75 +605,6 @@ func TestAqiLabel(t *testing.T) {
 		got := aqiLabel(tc.aqi)
 		if got != tc.want {
 			t.Errorf("aqiLabel(%d) = %q, want %q", tc.aqi, got, tc.want)
-		}
-	}
-}
-
-// ── computeAQI ───────────────────────────────────────────────────────────────
-
-func TestComputeAQI_AllZero(t *testing.T) {
-	if got := computeAQI(0, 0, 0, 0, 0, 0); got != 0 {
-		t.Errorf("computeAQI(all zero) = %d, want 0", got)
-	}
-}
-
-func TestComputeAQI_PM25Breakpoints(t *testing.T) {
-	// At the top of each PM2.5 bracket the formula simplifies to exactly iHi.
-	cases := []struct {
-		pm25 float64
-		want int
-	}{
-		{12.0, 50},   // top of Good
-		{35.4, 100},  // top of Moderate
-		{55.4, 150},  // top of Unhealthy(SG)
-		{150.4, 200}, // top of Unhealthy
-		{250.4, 300}, // top of VeryUnhealthy
-		{350.4, 400}, // top of first Hazardous bracket
-	}
-	for _, tc := range cases {
-		got := computeAQI(tc.pm25, 0, 0, 0, 0, 0)
-		if got != tc.want {
-			t.Errorf("computeAQI(pm25=%.1f) = %d, want %d", tc.pm25, got, tc.want)
-		}
-	}
-}
-
-func TestComputeAQI_DominantPollutant(t *testing.T) {
-	// PM2.5=6 → sub-index ~25 (Good); PM10=80 → sub-index ~63 (Moderate).
-	// Result must be the higher one, in the Moderate band.
-	got := computeAQI(6, 80, 0, 0, 0, 0)
-	if got < 51 || got > 100 {
-		t.Errorf("computeAQI dominant PM10: got %d, want in Moderate range [51,100]", got)
-	}
-}
-
-func TestComputeAQI_AboveTable(t *testing.T) {
-	if got := computeAQI(600, 0, 0, 0, 0, 0); got != 500 {
-		t.Errorf("computeAQI(pm25=600) = %d, want 500", got)
-	}
-}
-
-func TestComputeAQI_UnitConversions(t *testing.T) {
-	// Each gas at exactly the top of its Good bracket expressed in μg/m³.
-	// Correct unit conversions produce AQI 50 for each.
-	cases := []struct {
-		label              string
-		pm25, pm10, o3, no2, so2, co float64
-		want               int
-	}{
-		// O3:  54 ppb × 1.96 μg/m³/ppb = 105.84 μg/m³
-		{"O3 top-of-Good", 0, 0, 105.84, 0, 0, 0, 50},
-		// NO2: 53 ppb × 1.88 = 99.64 μg/m³
-		{"NO2 top-of-Good", 0, 0, 0, 99.64, 0, 0, 50},
-		// SO2: 35 ppb × 2.62 = 91.70 μg/m³
-		{"SO2 top-of-Good", 0, 0, 0, 0, 91.70, 0, 50},
-		// CO:  4.4 ppm × 1145 μg/m³/ppm = 5038 μg/m³
-		{"CO top-of-Good", 0, 0, 0, 0, 0, 5038, 50},
-	}
-	for _, tc := range cases {
-		got := computeAQI(tc.pm25, tc.pm10, tc.o3, tc.no2, tc.so2, tc.co)
-		if got != tc.want {
-			t.Errorf("%s: computeAQI = %d, want %d", tc.label, got, tc.want)
 		}
 	}
 }
@@ -1178,5 +1087,444 @@ func TestCallTELNET_TerminatesOnReadError(t *testing.T) {
 	got := runCallTELNET(t, app, errReader{})
 	if !strings.HasPrefix(got, "connect gravybot s3cret\n") {
 		t.Errorf("expected handshake before read error, got: %q", got)
+	}
+}
+
+// ── Open-Meteo helpers ───────────────────────────────────────────────────────
+
+func TestWeatherCodeText(t *testing.T) {
+	cases := []struct {
+		code int
+		want string
+	}{
+		{0, "Clear"},
+		{3, "Overcast"},
+		{45, "Fog"},
+		{63, "Rain"},
+		{75, "Heavy snow"},
+		{95, "Thunderstorm"},
+		{99, "Thunderstorm with heavy hail"},
+		{7, "Unknown"},   // gap inside the WMO table
+		{999, "Unknown"}, // outside it entirely
+	}
+	for _, tc := range cases {
+		if got := weatherCodeText(tc.code); got != tc.want {
+			t.Errorf("weatherCodeText(%d) = %q, want %q", tc.code, got, tc.want)
+		}
+	}
+}
+
+func TestWindCompass(t *testing.T) {
+	cases := []struct {
+		deg  float64
+		want string
+	}{
+		{0, "N"},
+		{11, "N"},   // rounds down into the north sector
+		{12, "NNE"}, // first bearing that rounds up out of it
+		{45, "NE"},
+		{90, "E"},
+		{180, "S"},
+		{262, "W"},
+		{270, "W"},
+		{348, "NNW"}, // last bearing in the NNW sector
+		{349, "N"},   // wraps back to north
+		{360, "N"},
+		{-10, "N"},   // negative bearings must not index out of range
+		{-30, "NNW"}, // and must wrap forwards, not panic
+	}
+	for _, tc := range cases {
+		if got := windCompass(tc.deg); got != tc.want {
+			t.Errorf("windCompass(%v) = %q, want %q", tc.deg, got, tc.want)
+		}
+	}
+}
+
+func TestCToF(t *testing.T) {
+	cases := []struct{ c, want float64 }{
+		{0, 32},
+		{100, 212},
+		{-40, -40},
+		{24.5, 76.1},
+	}
+	for _, tc := range cases {
+		if got := cToF(tc.c); math.Abs(got-tc.want) > 0.001 {
+			t.Errorf("cToF(%v) = %v, want %v", tc.c, got, tc.want)
+		}
+	}
+}
+
+func TestKphToMph(t *testing.T) {
+	if got := kphToMph(1.609344); math.Abs(got-1) > 0.0001 {
+		t.Errorf("kphToMph(1.609344) = %v, want 1", got)
+	}
+	if got := kphToMph(0); got != 0 {
+		t.Errorf("kphToMph(0) = %v, want 0", got)
+	}
+}
+
+// ── isLatLon ─────────────────────────────────────────────────────────────────
+
+func TestIsLatLon(t *testing.T) {
+	cases := []struct {
+		in      string
+		wantLat float64
+		wantLon float64
+		wantOK  bool
+	}{
+		{"39.7392,-104.9903", 39.7392, -104.9903, true},
+		{" 39.7392 , -104.9903 ", 39.7392, -104.9903, true},
+		{"0,0", 0, 0, true},
+		{"denver", 0, 0, false},
+		{"denver,co", 0, 0, false},
+		{"39.7392", 0, 0, false},
+		{"", 0, 0, false},
+	}
+	for _, tc := range cases {
+		lat, lon, ok := isLatLon(tc.in)
+		if ok != tc.wantOK || lat != tc.wantLat || lon != tc.wantLon {
+			t.Errorf("isLatLon(%q) = (%v, %v, %v), want (%v, %v, %v)",
+				tc.in, lat, lon, ok, tc.wantLat, tc.wantLon, tc.wantOK)
+		}
+	}
+}
+
+// ── matchPlace ───────────────────────────────────────────────────────────────
+
+func TestMatchPlace(t *testing.T) {
+	londons := []OpenMeteoPlace{
+		{Name: "London", CountryCode: "GB", Country: "United Kingdom", Admin1: "England"},
+		{Name: "London", CountryCode: "CA", Country: "Canada", Admin1: "Ontario"},
+		{Name: "London", CountryCode: "US", Country: "United States", Admin1: "Ohio"},
+	}
+	cases := []struct {
+		qualifier   string
+		wantCountry string
+		wantOK      bool
+	}{
+		{"england", "GB", true},        // admin1, exact
+		{"canada", "CA", true},         // country, exact
+		{"gb", "GB", true},             // country code
+		{"uk", "GB", true},             // country alias
+		{"oh", "US", true},             // US state abbreviation
+		{"United Kingdom", "GB", true}, // case-insensitive country
+		{"onta", "CA", true},           // prefix fallback
+		{"france", "", false},          // no hit
+		{"", "", false},                // empty qualifier never matches
+	}
+	for _, tc := range cases {
+		place, ok := matchPlace(londons, tc.qualifier)
+		if ok != tc.wantOK || place.CountryCode != tc.wantCountry {
+			t.Errorf("matchPlace(%q) = (%q, %v), want (%q, %v)",
+				tc.qualifier, place.CountryCode, ok, tc.wantCountry, tc.wantOK)
+		}
+	}
+}
+
+func TestMatchPlace_EmptyCandidates(t *testing.T) {
+	if _, ok := matchPlace(nil, "england"); ok {
+		t.Error("matchPlace(nil) reported a match")
+	}
+}
+
+// ── Open-Meteo stub server ───────────────────────────────────────────────────
+
+// newOpenMeteoApp points an application at a stub standing in for all three
+// Open-Meteo services. geocode is handed the requested name so a test can vary
+// its answer per lookup, which is how the qualifier retries are exercised.
+func newOpenMeteoApp(t *testing.T, geocode func(name string) string, forecast, airQuality string) *application {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, geocode(r.URL.Query().Get("name")))
+	})
+	mux.HandleFunc("/forecast", func(w http.ResponseWriter, r *http.Request) {
+		if forecast == "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		io.WriteString(w, forecast)
+	})
+	mux.HandleFunc("/air-quality", func(w http.ResponseWriter, r *http.Request) {
+		if airQuality == "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		io.WriteString(w, airQuality)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = srv.URL + "/search"
+	app.config.openMeteoForecastURL = srv.URL + "/forecast"
+	app.config.openMeteoAirQualityURL = srv.URL + "/air-quality"
+	return app
+}
+
+const stubForecast = `{"current":{"temperature_2m":24.5,"relative_humidity_2m":19,"wind_speed_10m":8.9,"wind_direction_10m":110,"weather_code":0}}`
+
+const stubAirQuality = `{"current":{"us_aqi":49}}`
+
+func geocodeEmpty(string) string { return `{}` }
+
+// ── resolvePlace ─────────────────────────────────────────────────────────────
+
+func TestResolvePlace_DirectHit(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"Denver","latitude":39.74,"longitude":-104.98,"country_code":"US","country":"United States","admin1":"Colorado"}]}`
+	}, stubForecast, stubAirQuality)
+
+	place, found, err := app.resolvePlace("denver")
+	if err != nil || !found {
+		t.Fatalf("resolvePlace = (found %v, err %v), want a hit", found, err)
+	}
+	if place.Name != "Denver" || place.Admin1 != "Colorado" {
+		t.Errorf("resolved %+v, want Denver/Colorado", place)
+	}
+}
+
+// The whole-string lookup misses for "london england" because the geocoder
+// indexes bare place names; the retry has to drop "england" and use it to pick
+// between the Londons.
+func TestResolvePlace_QualifierRetry(t *testing.T) {
+	var asked []string
+	app := newOpenMeteoApp(t, func(name string) string {
+		asked = append(asked, name)
+		if name != "london" {
+			return `{}`
+		}
+		return `{"results":[
+			{"name":"London","country_code":"CA","country":"Canada","admin1":"Ontario"},
+			{"name":"London","country_code":"GB","country":"United Kingdom","admin1":"England"}
+		]}`
+	}, stubForecast, stubAirQuality)
+
+	place, found, err := app.resolvePlace("london england")
+	if err != nil || !found {
+		t.Fatalf("resolvePlace = (found %v, err %v), want a hit", found, err)
+	}
+	if place.CountryCode != "GB" {
+		t.Errorf("resolved %+v, want the English London", place)
+	}
+	if len(asked) != 2 || asked[0] != "london england" || asked[1] != "london" {
+		t.Errorf("geocoder asked for %v, want the full string then the bare name", asked)
+	}
+}
+
+// A city name can itself be several words, so the retry has to shorten from the
+// right rather than assume the first word is the city.
+func TestResolvePlace_MultiWordCity(t *testing.T) {
+	app := newOpenMeteoApp(t, func(name string) string {
+		if name != "salt lake city" {
+			return `{}`
+		}
+		return `{"results":[{"name":"Salt Lake City","country_code":"US","country":"United States","admin1":"Utah"}]}`
+	}, stubForecast, stubAirQuality)
+
+	place, found, err := app.resolvePlace("salt lake city utah")
+	if err != nil || !found {
+		t.Fatalf("resolvePlace = (found %v, err %v), want a hit", found, err)
+	}
+	if place.Name != "Salt Lake City" {
+		t.Errorf("resolved %+v, want Salt Lake City", place)
+	}
+}
+
+func TestResolvePlace_NotFound(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	if _, found, err := app.resolvePlace("vars ontario"); found || err != nil {
+		t.Errorf("resolvePlace = (found %v, err %v), want no hit and no error", found, err)
+	}
+}
+
+func TestResolvePlace_Empty(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	if _, found, _ := app.resolvePlace("   "); found {
+		t.Error("resolvePlace(blank) reported a hit")
+	}
+}
+
+// ── sendWeatherRequest ───────────────────────────────────────────────────────
+
+func TestSendWeatherRequest_USUsesFahrenheitAndState(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"Denver","latitude":39.74,"longitude":-104.98,"country_code":"US","country":"United States","admin1":"Colorado"}]}`
+	}, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("denver")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "Denver, Colorado: Clear 76.1F 19.0%% 5.5mph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
+func TestSendWeatherRequest_NonUSUsesCelsiusAndCountry(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"London","latitude":51.5,"longitude":-0.13,"country_code":"GB","country":"United Kingdom","admin1":"England"}]}`
+	}, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("london")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "London, United Kingdom: Clear 24.5C 19.0%% 8.9kph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
+// Coordinates skip the geocoder entirely, so the stub would fail the test if
+// they did not: it answers every lookup with no results.
+func TestSendWeatherRequest_Coordinates(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("39.7392,-104.9903")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "39.7392,-104.9903: Clear 24.5C 19.0%% 8.9kph ESE Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
+func TestSendWeatherRequest_NotFound(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("vars ontario")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if !strings.Contains(got, "vars ontario not found") {
+		t.Errorf("got %q, want a not-found message naming the location", got)
+	}
+}
+
+// A null reading is the API saying it has no data for the point, which must not
+// print as an AQI of 0 ("Good:0").
+func TestSendWeatherRequest_OmitsAQIWhenNull(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"London","country_code":"GB","country":"United Kingdom"}]}`
+	}, stubForecast, `{"current":{"us_aqi":null}}`)
+
+	got, err := app.sendWeatherRequest("london")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if strings.Contains(got, "Good") || strings.Contains(got, ":0") {
+		t.Errorf("got %q, want no AQI segment", got)
+	}
+	if !strings.HasSuffix(got, "ESE\n") {
+		t.Errorf("got %q, want the line to end at the wind direction", got)
+	}
+}
+
+// Air quality is a separate service, so losing it must not cost the forecast.
+func TestSendWeatherRequest_SurvivesAQIFailure(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"London","country_code":"GB","country":"United Kingdom"}]}`
+	}, stubForecast, "")
+
+	got, err := app.sendWeatherRequest("london")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if !strings.HasPrefix(got, "London, United Kingdom: Clear") {
+		t.Errorf("got %q, want the forecast despite the air quality failure", got)
+	}
+}
+
+func TestSendWeatherRequest_ZeroAQIIsReported(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"London","country_code":"GB","country":"United Kingdom"}]}`
+	}, stubForecast, `{"current":{"us_aqi":0}}`)
+
+	got, err := app.sendWeatherRequest("london")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if !strings.HasSuffix(got, "Good:0\n") {
+		t.Errorf("got %q, want a genuine zero reading to print", got)
+	}
+}
+
+// The forecast is the one call gbw cannot do without, so its failure has to
+// surface as an error rather than a half-filled line.
+func TestSendWeatherRequest_ForecastFailureIsAnError(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"London","country_code":"GB","country":"United Kingdom"}]}`
+	}, "", stubAirQuality)
+
+	if _, err := app.sendWeatherRequest("london"); err == nil {
+		t.Error("sendWeatherRequest returned no error when the forecast API failed")
+	}
+}
+
+func TestGeocodeSearch_RejectsErrorStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = srv.URL
+
+	if _, err := app.geocodeSearch("london", 1); err == nil {
+		t.Error("geocodeSearch accepted an HTTP 429")
+	}
+}
+
+func TestGeocodeSearch_RejectsMalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "not json")
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = srv.URL
+
+	if _, err := app.geocodeSearch("london", 1); err == nil {
+		t.Error("geocodeSearch accepted a malformed body")
+	}
+}
+
+// The name has to survive URL encoding or multi-word lookups silently miss.
+func TestGeocodeSearch_EscapesTheName(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query().Get("name")
+		io.WriteString(w, `{}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = srv.URL
+
+	if _, err := app.geocodeSearch("salt lake city", 5); err != nil {
+		t.Fatalf("geocodeSearch: %v", err)
+	}
+	if got != "salt lake city" {
+		t.Errorf("server saw name=%q, want %q", got, "salt lake city")
+	}
+}
+
+// "ca" has to expand to California before matching, otherwise it collides with
+// Canada's country code and picks the wrong continent.
+func TestMatchPlace_StateAbbrevBeatsCountryCode(t *testing.T) {
+	places := []OpenMeteoPlace{
+		{Name: "London", CountryCode: "CA", Country: "Canada", Admin1: "Ontario"},
+		{Name: "Lancaster", CountryCode: "US", Country: "United States", Admin1: "California"},
+	}
+	place, ok := matchPlace(places, "ca")
+	if !ok || place.Admin1 != "California" {
+		t.Errorf("matchPlace(%q) = (%+v, %v), want California", "ca", place, ok)
 	}
 }

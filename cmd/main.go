@@ -23,15 +23,17 @@ import (
 )
 
 type config struct {
-	srvAddr       string
-	yirpAPIAddr   string
-	yirpapikey    string
-	username      string
-	password      string
-	weatherapikey    string
-	finnhubapikey    string
-	coingeckoapikey  string
-	coingeckoBaseURL string
+	srvAddr                string
+	yirpAPIAddr            string
+	yirpapikey             string
+	username               string
+	password               string
+	openMeteoGeocodeURL    string
+	openMeteoForecastURL   string
+	openMeteoAirQualityURL string
+	finnhubapikey          string
+	coingeckoapikey        string
+	coingeckoBaseURL       string
 }
 
 type application struct {
@@ -54,10 +56,12 @@ func main() {
 	cfg.username = os.Getenv("BOT_USERNAME")
 	cfg.password = os.Getenv("BOT_PASSWORD")
 	cfg.yirpapikey = os.Getenv("YIRP_APIKEY")
-	cfg.weatherapikey = os.Getenv("WEATHER_APIKEY")
 	cfg.finnhubapikey = os.Getenv("FINNHUB_APIKEY")
 	cfg.coingeckoapikey = os.Getenv("COINGECKO_APIKEY")
 	cfg.coingeckoBaseURL = "https://api.coingecko.com/api/v3"
+	cfg.openMeteoGeocodeURL = "https://geocoding-api.open-meteo.com/v1/search"
+	cfg.openMeteoForecastURL = "https://api.open-meteo.com/v1/forecast"
+	cfg.openMeteoAirQualityURL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
@@ -106,35 +110,35 @@ func (app *application) botSend(w telnet.Writer, data string) {
 	}
 }
 
-type WeatherAPIResponse struct {
-	Location struct {
-		Name    string  `json:"name"`
-		Region  string  `json:"region"`
-		Country string  `json:"country"`
-		Lat     float64 `json:"lat"`
-		Lon     float64 `json:"lon"`
-	} `json:"location"`
+// OpenMeteoPlace is a single geocoding hit from the Open-Meteo geocoding API.
+type OpenMeteoPlace struct {
+	Name        string  `json:"name"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	CountryCode string  `json:"country_code"`
+	Country     string  `json:"country"`
+	Admin1      string  `json:"admin1"`
+}
 
+type OpenMeteoGeocodeResponse struct {
+	Results []OpenMeteoPlace `json:"results"`
+}
+
+type OpenMeteoForecastResponse struct {
 	Current struct {
-		Last_updated string  `json:"last_updated"`
-		Temp_c       float64 `json:"temp_c"`
-		Temp_f       float64 `json:"temp_f"`
-		Condition    struct {
-			Text string `json:"text"`
-		} `json:"condition"`
-		Wind_mph   float64 `json:"wind_mph"`
-		Wind_kph   float64 `json:"wind_kph"`
-		Wind_dir   string  `json:"wind_dir"`
-		Humidity   float64 `json:"humidity"`
-		AirQuality struct {
-			CO         float64 `json:"co"`
-			NO2        float64 `json:"no2"`
-			O3         float64 `json:"o3"`
-			SO2        float64 `json:"so2"`
-			PM25       float64 `json:"pm2_5"`
-			PM10       float64 `json:"pm10"`
-			USEPAIndex int     `json:"us-epa-index"`
-		} `json:"air_quality"`
+		Temperature   float64 `json:"temperature_2m"`
+		Humidity      float64 `json:"relative_humidity_2m"`
+		WindSpeed     float64 `json:"wind_speed_10m"`
+		WindDirection float64 `json:"wind_direction_10m"`
+		WeatherCode   int     `json:"weather_code"`
+	} `json:"current"`
+}
+
+// USAQI is a pointer so that a missing or null reading is distinguishable
+// from a genuine reading of 0.
+type OpenMeteoAirQualityResponse struct {
+	Current struct {
+		USAQI *float64 `json:"us_aqi"`
 	} `json:"current"`
 }
 
@@ -264,44 +268,264 @@ func parseLatLon(s string) string {
 	return s
 }
 
-type aqiBP struct{ cLo, cHi float64; iLo, iHi int }
-
-func aqiSub(c float64, bps []aqiBP) int {
-	for _, bp := range bps {
-		if c <= bp.cHi {
-			return int(math.Round(float64(bp.iHi-bp.iLo)/(bp.cHi-bp.cLo)*(c-bp.cLo) + float64(bp.iLo)))
-		}
-	}
-	return 500
+// wmoWeatherText maps the WMO 4677 weather codes Open-Meteo returns to the
+// short condition text gbw prints.
+var wmoWeatherText = map[int]string{
+	0:  "Clear",
+	1:  "Mainly clear",
+	2:  "Partly cloudy",
+	3:  "Overcast",
+	45: "Fog",
+	48: "Rime fog",
+	51: "Light drizzle",
+	53: "Drizzle",
+	55: "Heavy drizzle",
+	56: "Light freezing drizzle",
+	57: "Freezing drizzle",
+	61: "Light rain",
+	63: "Rain",
+	65: "Heavy rain",
+	66: "Light freezing rain",
+	67: "Freezing rain",
+	71: "Light snow",
+	73: "Snow",
+	75: "Heavy snow",
+	77: "Snow grains",
+	80: "Light rain showers",
+	81: "Rain showers",
+	82: "Violent rain showers",
+	85: "Light snow showers",
+	86: "Snow showers",
+	95: "Thunderstorm",
+	96: "Thunderstorm with hail",
+	99: "Thunderstorm with heavy hail",
 }
 
-// computeAQI calculates the US EPA AQI from raw pollutant concentrations
-// returned by weatherapi.com (μg/m³ for all except CO).
-// Concentrations are instantaneous, not time-averaged, so values are approximate.
-func computeAQI(pm25, pm10, o3ugm3, no2ugm3, so2ugm3, coUgm3 float64) int {
-	pm25BPs := []aqiBP{{0.0, 12.0, 0, 50}, {12.1, 35.4, 51, 100}, {35.5, 55.4, 101, 150}, {55.5, 150.4, 151, 200}, {150.5, 250.4, 201, 300}, {250.5, 350.4, 301, 400}, {350.5, 500.4, 401, 500}}
-	pm10BPs := []aqiBP{{0, 54, 0, 50}, {55, 154, 51, 100}, {155, 254, 101, 150}, {255, 354, 151, 200}, {355, 424, 201, 300}, {425, 504, 301, 400}, {505, 604, 401, 500}}
-	o3BPs   := []aqiBP{{0, 54, 0, 50}, {55, 70, 51, 100}, {71, 85, 101, 150}, {86, 105, 151, 200}, {106, 200, 201, 300}}
-	no2BPs  := []aqiBP{{0, 53, 0, 50}, {54, 100, 51, 100}, {101, 360, 101, 150}, {361, 649, 151, 200}, {650, 1249, 201, 300}, {1250, 1649, 301, 400}, {1650, 2049, 401, 500}}
-	so2BPs  := []aqiBP{{0, 35, 0, 50}, {36, 75, 51, 100}, {76, 185, 101, 150}, {186, 304, 151, 200}, {305, 604, 201, 300}, {605, 804, 301, 400}, {805, 1004, 401, 500}}
-	coBPs   := []aqiBP{{0, 4.4, 0, 50}, {4.5, 9.4, 51, 100}, {9.5, 12.4, 101, 150}, {12.5, 15.4, 151, 200}, {15.5, 30.4, 201, 300}, {30.5, 40.4, 301, 400}, {40.5, 50.4, 401, 500}}
+func weatherCodeText(code int) string {
+	if text, ok := wmoWeatherText[code]; ok {
+		return text
+	}
+	return "Unknown"
+}
 
-	// Convert μg/m³ → ppb/ppm at 25°C, 1 atm
-	o3ppb  := o3ugm3 / 1.96
-	no2ppb := no2ugm3 / 1.88
-	so2ppb := so2ugm3 / 2.62
-	coppm  := coUgm3 / 1145.0
+// compassPoints is indexed by 22.5 degree sector, starting at north.
+var compassPoints = [16]string{"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"}
 
-	aqi := 0
-	for _, p := range []struct {
-		c   float64
-		bps []aqiBP
-	}{{pm25, pm25BPs}, {pm10, pm10BPs}, {o3ppb, o3BPs}, {no2ppb, no2BPs}, {so2ppb, so2BPs}, {coppm, coBPs}} {
-		if sub := aqiSub(p.c, p.bps); sub > aqi {
-			aqi = sub
+// windCompass converts a bearing in degrees to the compass abbreviation
+// weatherapi.com used to supply ready-made.
+func windCompass(deg float64) string {
+	sector := int(math.Round(deg/22.5)) % 16
+	if sector < 0 {
+		sector += 16
+	}
+	return compassPoints[sector]
+}
+
+func cToF(c float64) float64 { return c*9/5 + 32 }
+
+func kphToMph(kph float64) float64 { return kph / 1.609344 }
+
+// usStateAbbrev expands two-letter state codes, which the geocoder indexes
+// only under their full names.
+var usStateAbbrev = map[string]string{
+	"al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas",
+	"ca": "california", "co": "colorado", "ct": "connecticut", "de": "delaware",
+	"fl": "florida", "ga": "georgia", "hi": "hawaii", "id": "idaho",
+	"il": "illinois", "in": "indiana", "ia": "iowa", "ks": "kansas",
+	"ky": "kentucky", "la": "louisiana", "me": "maine", "md": "maryland",
+	"ma": "massachusetts", "mi": "michigan", "mn": "minnesota", "ms": "mississippi",
+	"mo": "missouri", "mt": "montana", "ne": "nebraska", "nv": "nevada",
+	"nh": "new hampshire", "nj": "new jersey", "nm": "new mexico", "ny": "new york",
+	"nc": "north carolina", "nd": "north dakota", "oh": "ohio", "ok": "oklahoma",
+	"or": "oregon", "pa": "pennsylvania", "ri": "rhode island", "sc": "south carolina",
+	"sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah",
+	"vt": "vermont", "va": "virginia", "wa": "washington", "wv": "west virginia",
+	"wi": "wisconsin", "wy": "wyoming", "dc": "district of columbia",
+}
+
+// countryAlias covers the everyday names the geocoder does not return verbatim.
+var countryAlias = map[string]string{
+	"uk":  "united kingdom",
+	"usa": "united states",
+	"uae": "united arab emirates",
+}
+
+// geocodeCandidateCount is how many hits to pull when a qualifier has to pick
+// between same-named places.
+const geocodeCandidateCount = 20
+
+// matchPlace picks the geocoding hit satisfying a trailing qualifier, such as
+// the "england" in "london england" or the "co" in "denver co".
+func matchPlace(places []OpenMeteoPlace, qualifier string) (OpenMeteoPlace, bool) {
+	q := strings.ToLower(strings.TrimSpace(qualifier))
+	if q == "" {
+		return OpenMeteoPlace{}, false
+	}
+	if full, ok := usStateAbbrev[q]; ok {
+		q = full
+	} else if full, ok := countryAlias[q]; ok {
+		q = full
+	}
+
+	for _, place := range places {
+		if strings.ToLower(place.Admin1) == q ||
+			strings.ToLower(place.Country) == q ||
+			strings.ToLower(place.CountryCode) == q {
+			return place, true
 		}
 	}
-	return aqi
+
+	// Fall back to a prefix so that "calif" still finds California.
+	for _, place := range places {
+		if strings.HasPrefix(strings.ToLower(place.Admin1), q) ||
+			strings.HasPrefix(strings.ToLower(place.Country), q) {
+			return place, true
+		}
+	}
+
+	return OpenMeteoPlace{}, false
+}
+
+// isLatLon reports whether a location has already been normalised to a
+// "lat,lon" pair by parseLatLon.
+func isLatLon(s string) (float64, float64, bool) {
+	parts := strings.SplitN(s, ",", 2)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	lat, errLat := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	lon, errLon := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if errLat != nil || errLon != nil {
+		return 0, 0, false
+	}
+	return lat, lon, true
+}
+
+func (app *application) geocodeSearch(name string, count int) ([]OpenMeteoPlace, error) {
+	endpoint := fmt.Sprintf("%s?name=%s&count=%d&format=json",
+		app.config.openMeteoGeocodeURL, url.QueryEscape(name), count)
+
+	res, err := http.Get(endpoint)
+	if err != nil {
+		app.errorLog.Printf("geocode request failed: %s", err)
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode > 299 {
+		return nil, fmt.Errorf("geocode API returned code: %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		app.errorLog.Printf("geocode ReadAll failed: %s", err)
+		return nil, err
+	}
+
+	var geocode OpenMeteoGeocodeResponse
+	if err := json.Unmarshal(body, &geocode); err != nil {
+		app.errorLog.Printf("geocode decode failed: %s", err)
+		return nil, err
+	}
+
+	return geocode.Results, nil
+}
+
+// resolvePlace turns a free-form location into a single geocoding hit. The
+// geocoder indexes bare place names, so "london england" finds nothing on the
+// first attempt; the retries shorten the name from the right and treat the
+// words dropped as a state or country qualifier.
+func (app *application) resolvePlace(loc string) (OpenMeteoPlace, bool, error) {
+	loc = strings.TrimSpace(loc)
+	if loc == "" {
+		return OpenMeteoPlace{}, false, nil
+	}
+
+	places, err := app.geocodeSearch(loc, 1)
+	if err != nil {
+		return OpenMeteoPlace{}, false, err
+	}
+	if len(places) > 0 {
+		return places[0], true, nil
+	}
+
+	fields := strings.Fields(loc)
+	for i := len(fields) - 1; i >= 1; i-- {
+		candidates, err := app.geocodeSearch(strings.Join(fields[:i], " "), geocodeCandidateCount)
+		if err != nil {
+			return OpenMeteoPlace{}, false, err
+		}
+		if place, ok := matchPlace(candidates, strings.Join(fields[i:], " ")); ok {
+			return place, true, nil
+		}
+	}
+
+	return OpenMeteoPlace{}, false, nil
+}
+
+func (app *application) fetchCurrentWeather(lat, lon float64) (OpenMeteoForecastResponse, error) {
+	var forecast OpenMeteoForecastResponse
+
+	endpoint := fmt.Sprintf("%s?latitude=%v&longitude=%v&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code",
+		app.config.openMeteoForecastURL, lat, lon)
+
+	res, err := http.Get(endpoint)
+	if err != nil {
+		app.errorLog.Printf("weather request failed: %s", err)
+		return forecast, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode > 299 {
+		return forecast, fmt.Errorf("weather API returned code: %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		app.errorLog.Printf("weather ReadAll failed: %s", err)
+		return forecast, err
+	}
+
+	if err := json.Unmarshal(body, &forecast); err != nil {
+		app.errorLog.Printf("weather decode failed: %s", err)
+		return forecast, err
+	}
+
+	return forecast, nil
+}
+
+// fetchUSAQI returns the EPA AQI Open-Meteo computes for a point. The second
+// result is false when the station has no reading, which is common outside
+// populated areas.
+func (app *application) fetchUSAQI(lat, lon float64) (int, bool, error) {
+	endpoint := fmt.Sprintf("%s?latitude=%v&longitude=%v&current=us_aqi",
+		app.config.openMeteoAirQualityURL, lat, lon)
+
+	res, err := http.Get(endpoint)
+	if err != nil {
+		return 0, false, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode > 299 {
+		return 0, false, fmt.Errorf("air quality API returned code: %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, false, err
+	}
+
+	var airQuality OpenMeteoAirQualityResponse
+	if err := json.Unmarshal(body, &airQuality); err != nil {
+		return 0, false, err
+	}
+
+	if airQuality.Current.USAQI == nil {
+		return 0, false, nil
+	}
+
+	return int(math.Round(*airQuality.Current.USAQI)), true, nil
 }
 
 func aqiLabel(aqi int) string {
@@ -321,58 +545,68 @@ func aqiLabel(aqi int) string {
 	}
 }
 
-func (app *application) sendWeatherRequest(query string) (string, error) {
-	res, err := http.Get("https://api.weatherapi.com/v1/current.json?key=" + app.config.weatherapikey + "&q=" + query + "&aqi=yes")
+func (app *application) sendWeatherRequest(loc string) (string, error) {
+	lat, lon, coords := isLatLon(loc)
 
+	place := OpenMeteoPlace{Latitude: lat, Longitude: lon}
+	if !coords {
+		resolved, found, err := app.resolvePlace(loc)
+		if err != nil {
+			return "", err
+		}
+		if !found {
+			result := "Weather error: " + loc + " not found. Try using a city state or city country pair.\n"
+			fmt.Println(result)
+			return result, nil
+		}
+		place = resolved
+	}
+
+	// The air quality reading is a separate service from the forecast, so the
+	// two calls overlap rather than run back to back.
+	type airQualityResult struct {
+		aqi   int
+		found bool
+	}
+	airQualityCh := make(chan airQualityResult, 1)
+	go func() {
+		aqi, found, err := app.fetchUSAQI(place.Latitude, place.Longitude)
+		if err != nil {
+			app.errorLog.Printf("air quality request failed: %s", err)
+			found = false
+		}
+		airQualityCh <- airQualityResult{aqi: aqi, found: found}
+	}()
+
+	forecast, err := app.fetchCurrentWeather(place.Latitude, place.Longitude)
+	airQuality := <-airQualityCh
 	if err != nil {
-		app.errorLog.Printf("weather request failed: %s", err)
 		return "", err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode == 400 {
-		result := "Weather error: " + query + " not found. Try using a city state or city country pair.\n"
-		fmt.Println(result)
-		return result, nil
-	}
-
-	if res.StatusCode > 299 {
-		result := "Weather error: API returned code: " + strconv.Itoa(res.StatusCode) + "\n"
-		fmt.Println(result)
-		return result, nil
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		app.errorLog.Printf("Weather request failed ReadAll: %s", err)
-		return "", err
-	}
-
-	var weatherResponse WeatherAPIResponse
-	err = json.Unmarshal(body, &weatherResponse)
-	if err != nil {
-		fmt.Println("error:", err)
 	}
 
 	aqiStr := ""
-	aq := weatherResponse.Current.AirQuality
-	if aq.USEPAIndex > 0 {
-		aqi := computeAQI(aq.PM25, aq.PM10, aq.O3, aq.NO2, aq.SO2, aq.CO)
-		aqiStr = fmt.Sprintf(" %s:%d", aqiLabel(aqi), aqi)
+	if airQuality.found {
+		aqiStr = fmt.Sprintf(" %s:%d", aqiLabel(airQuality.aqi), airQuality.aqi)
 	}
 
-	var locationRegion string
-	var result string
+	current := forecast.Current
+	condition := weatherCodeText(current.WeatherCode)
+	windDir := windCompass(current.WindDirection)
 
-	if strings.HasPrefix(weatherResponse.Location.Country, "United States of America") || strings.HasPrefix(weatherResponse.Location.Country, "USA") {
-		locationRegion = weatherResponse.Location.Region
-		result = fmt.Sprintf("%v, %v: %v %.1fF %.1f%%%% %.1fmph %v%s\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_f, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_mph, weatherResponse.Current.Wind_dir, aqiStr)
-	} else {
-		locationRegion = weatherResponse.Location.Country
-		result = fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v%s\n", weatherResponse.Location.Name, locationRegion, weatherResponse.Current.Condition.Text, weatherResponse.Current.Temp_c, weatherResponse.Current.Humidity, weatherResponse.Current.Wind_kph, weatherResponse.Current.Wind_dir, aqiStr)
+	// Open-Meteo has no reverse geocoder, so a coordinate query has no place
+	// name to print and the coordinates stand in for one.
+	if coords {
+		return fmt.Sprintf("%v: %v %.1fC %.1f%%%% %.1fkph %v%s\n",
+			loc, condition, current.Temperature, current.Humidity, current.WindSpeed, windDir, aqiStr), nil
 	}
 
-	return result, nil
+	if place.CountryCode == "US" {
+		return fmt.Sprintf("%v, %v: %v %.1fF %.1f%%%% %.1fmph %v%s\n",
+			place.Name, place.Admin1, condition, cToF(current.Temperature), current.Humidity, kphToMph(current.WindSpeed), windDir, aqiStr), nil
+	}
+
+	return fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v%s\n",
+		place.Name, place.Country, condition, current.Temperature, current.Humidity, current.WindSpeed, windDir, aqiStr), nil
 }
 
 func (app *application) getStockQuote(query string) (string, error) {
@@ -1703,9 +1937,8 @@ func (app *application) checkLineForRegexps(line string) (string, error) {
 					continue
 				}
 				loc = parseLatLon(loc)
-				query := url.QueryEscape(loc)
 
-				response, err := app.sendWeatherRequest(query)
+				response, err := app.sendWeatherRequest(loc)
 				if err != nil {
 					fmt.Println("GRAVYWEATHER request fail")
 					fmt.Println(err)
