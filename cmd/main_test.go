@@ -1615,3 +1615,261 @@ func TestSendWeatherRequest_UnknownAirportCodeFallsThrough(t *testing.T) {
 		t.Errorf("got %q, want the geocoded result", got)
 	}
 }
+
+// ── Open-Meteo transport failures ────────────────────────────────────────────
+
+// unreachableURL is a server that is guaranteed not to answer, so a caller's
+// transport error path runs without waiting on a timeout.
+func unreachableURL(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	return url
+}
+
+func TestGeocodeSearch_TransportError(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = unreachableURL(t)
+
+	if _, err := app.geocodeSearch("london", 1); err == nil {
+		t.Error("geocodeSearch returned no error when the host was unreachable")
+	}
+}
+
+func TestFetchCurrentWeather_TransportError(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoForecastURL = unreachableURL(t)
+
+	if _, err := app.fetchCurrentWeather(51.5, -0.13); err == nil {
+		t.Error("fetchCurrentWeather returned no error when the host was unreachable")
+	}
+}
+
+func TestFetchCurrentWeather_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "{not json")
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoForecastURL = srv.URL
+
+	if _, err := app.fetchCurrentWeather(51.5, -0.13); err == nil {
+		t.Error("fetchCurrentWeather accepted a malformed body")
+	}
+}
+
+func TestFetchUSAQI_TransportError(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoAirQualityURL = unreachableURL(t)
+
+	if _, found, err := app.fetchUSAQI(51.5, -0.13); err == nil || found {
+		t.Errorf("fetchUSAQI = (found %v, err %v), want a failure", found, err)
+	}
+}
+
+func TestFetchUSAQI_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "{not json")
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoAirQualityURL = srv.URL
+
+	if _, found, err := app.fetchUSAQI(51.5, -0.13); err == nil || found {
+		t.Errorf("fetchUSAQI = (found %v, err %v), want a failure", found, err)
+	}
+}
+
+// The retry lookups are just as capable of failing as the first one, and a
+// transport error there must not read as "no such place".
+func TestResolvePlace_PropagatesRetryError(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			io.WriteString(w, `{}`)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(srv.Close)
+
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = srv.URL
+
+	_, found, err := app.resolvePlace("london england")
+	if err == nil {
+		t.Error("resolvePlace swallowed a failure in the retry lookup")
+	}
+	if found {
+		t.Error("resolvePlace reported a hit despite the failure")
+	}
+}
+
+// ── checkLineForRegexps – weather dispatch ───────────────────────────────────
+
+func weatherLine(query string) string {
+	return `[Dino(#1234)] Dino says "gravybot weather ` + query + `"`
+}
+
+func TestCheckLine_WeatherSingleLocation(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"Denver","country_code":"US","country":"United States","admin1":"Colorado"}]}`
+	}, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("denver"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "pose W> Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	if cmd != want {
+		t.Errorf("got  %q\nwant %q", cmd, want)
+	}
+}
+
+func TestCheckLine_WeatherSplitsOnCommas(t *testing.T) {
+	app := newOpenMeteoApp(t, func(name string) string {
+		return `{"results":[{"name":"` + strings.ToUpper(name[:1]) + name[1:] + `","country_code":"FR","country":"France"}]}`
+	}, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("paris, lyon, nice"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.Count(cmd, "pose W> "); got != 3 {
+		t.Errorf("got %d poses, want 3: %q", got, cmd)
+	}
+	for _, city := range []string{"Paris", "Lyon", "Nice"} {
+		if !strings.Contains(cmd, city+", France") {
+			t.Errorf("%s missing from %q", city, cmd)
+		}
+	}
+}
+
+// The cap keeps one line from turning into a wall of poses.
+func TestCheckLine_WeatherCapsAtFiveLocations(t *testing.T) {
+	var lookups int
+	app := newOpenMeteoApp(t, func(name string) string {
+		lookups++
+		return `{"results":[{"name":"` + name + `","country_code":"FR","country":"France"}]}`
+	}, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("a, b, c, d, e, f, g"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.Count(cmd, "pose W> "); got != 5 {
+		t.Errorf("got %d poses, want 5", got)
+	}
+	if lookups != 5 {
+		t.Errorf("made %d lookups, want 5 -- the surplus locations should never be fetched", lookups)
+	}
+}
+
+func TestCheckLine_WeatherSkipsBlankSegments(t *testing.T) {
+	app := newOpenMeteoApp(t, func(name string) string {
+		if strings.TrimSpace(name) == "" {
+			t.Errorf("geocoder asked for an empty location")
+		}
+		return `{"results":[{"name":"Paris","country_code":"FR","country":"France"}]}`
+	}, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("paris, , ,"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.Count(cmd, "pose W> "); got != 1 {
+		t.Errorf("got %d poses, want 1: %q", got, cmd)
+	}
+}
+
+// A space-separated coordinate pair has to survive the dispatcher and reach
+// sendWeatherRequest as a normalised pair, skipping the geocoder entirely.
+func TestCheckLine_WeatherLatLonPair(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("39.7392 -104.9903"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "pose W> 39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
+	if cmd != want {
+		t.Errorf("got  %q\nwant %q", cmd, want)
+	}
+}
+
+// A failed lookup has to report as one bad location, not take the line down.
+func TestCheckLine_WeatherReportsRequestFailure(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"Paris","country_code":"FR","country":"France"}]}`
+	}, "", stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("paris"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cmd != "pose W> Error: weather api call failed.\n" {
+		t.Errorf("got %q, want the failure notice", cmd)
+	}
+}
+
+func TestCheckLine_WeatherAirportCode(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	cmd, err := app.checkLineForRegexps(weatherLine("LHR"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(cmd, "pose W> London, United Kingdom:") {
+		t.Errorf("got %q, want the airport resolved", cmd)
+	}
+}
+
+// truncatedBodyURL promises more bytes than it delivers and then drops the
+// connection, so the client fails while reading a response it already
+// accepted. What it does send is deliberately valid JSON for all three
+// endpoints: if the short read were ignored, the partial body would decode
+// cleanly and a truncated response would surface as a confident 99C reading
+// instead of an error.
+func truncatedBodyURL(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "4096")
+		io.WriteString(w, `{"results":[],"current":{"temperature_2m":99,"us_aqi":42}}`)
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestGeocodeSearch_TruncatedBody(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoGeocodeURL = truncatedBodyURL(t)
+
+	if _, err := app.geocodeSearch("london", 1); err == nil {
+		t.Error("geocodeSearch accepted a truncated body")
+	}
+}
+
+func TestFetchCurrentWeather_TruncatedBody(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoForecastURL = truncatedBodyURL(t)
+
+	forecast, err := app.fetchCurrentWeather(51.5, -0.13)
+	if err == nil {
+		t.Fatalf("fetchCurrentWeather accepted a truncated body, returning %+v", forecast.Current)
+	}
+}
+
+func TestFetchUSAQI_TruncatedBody(t *testing.T) {
+	app := newTestApp()
+	app.config.openMeteoAirQualityURL = truncatedBodyURL(t)
+
+	if _, found, err := app.fetchUSAQI(51.5, -0.13); err == nil || found {
+		t.Errorf("fetchUSAQI = (found %v, err %v), want a failure", found, err)
+	}
+}

@@ -54,30 +54,37 @@ var (
 )
 
 func loadAirports() map[string]airport {
-	airportsOnce.Do(func() {
-		lines := strings.Split(strings.TrimSpace(airportData), "\n")
-		airportsByIATA = make(map[string]airport, len(lines))
-
-		for _, line := range lines {
-			fields := strings.Split(line, "\t")
-			if len(fields) != 6 {
-				continue
-			}
-			latitude, errLat := strconv.ParseFloat(fields[4], 64)
-			longitude, errLon := strconv.ParseFloat(fields[5], 64)
-			if errLat != nil || errLon != nil {
-				continue
-			}
-			airportsByIATA[fields[0]] = airport{
-				Name:        fields[1],
-				Region:      fields[2],
-				CountryCode: fields[3],
-				Latitude:    latitude,
-				Longitude:   longitude,
-			}
-		}
-	})
+	airportsOnce.Do(func() { airportsByIATA = parseAirports(airportData) })
 	return airportsByIATA
+}
+
+// parseAirports skips rows it cannot make sense of rather than failing the
+// table, so one bad line in a regenerated dataset costs a single airport
+// instead of the whole command.
+func parseAirports(data string) map[string]airport {
+	lines := strings.Split(strings.TrimSpace(data), "\n")
+	parsed := make(map[string]airport, len(lines))
+
+	for _, line := range lines {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 6 {
+			continue
+		}
+		latitude, errLat := strconv.ParseFloat(fields[4], 64)
+		longitude, errLon := strconv.ParseFloat(fields[5], 64)
+		if errLat != nil || errLon != nil {
+			continue
+		}
+		parsed[fields[0]] = airport{
+			Name:        fields[1],
+			Region:      fields[2],
+			CountryCode: fields[3],
+			Latitude:    latitude,
+			Longitude:   longitude,
+		}
+	}
+
+	return parsed
 }
 
 // lookupAirport resolves an IATA code, following a metropolitan area code to

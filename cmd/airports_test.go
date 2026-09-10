@@ -123,3 +123,46 @@ func TestAirportPlace_RegionPlacement(t *testing.T) {
 		t.Errorf("non-US airport rendered as %+v, want the region in Country", other)
 	}
 }
+
+// A regenerated dataset with one bad row should cost that airport, not the
+// whole command.
+func TestParseAirports_SkipsUnusableRows(t *testing.T) {
+	data := strings.Join([]string{
+		"LHR\tLondon\tUnited Kingdom\tGB\t51.4707\t-0.4599",
+		"BAD\tToo\tFew\tFields",                      // wrong column count
+		"XTR\tExtra\tColumns\tGB\t1\t2\t3",           // too many columns
+		"NAN\tNot A Number\tFrance\tFR\tnorth\t2.5",  // unparseable latitude
+		"NOL\tNo Longitude\tFrance\tFR\t48.85\teast", // unparseable longitude
+		"DEN\tDenver\tColorado\tUS\t39.86\t-104.674",
+	}, "\n")
+
+	parsed := parseAirports(data)
+
+	if len(parsed) != 2 {
+		t.Errorf("parsed %d rows (%v), want only the two well-formed ones", len(parsed), keysOf(parsed))
+	}
+	for _, code := range []string{"LHR", "DEN"} {
+		if _, ok := parsed[code]; !ok {
+			t.Errorf("%s was dropped despite being well formed", code)
+		}
+	}
+	for _, code := range []string{"BAD", "XTR", "NAN", "NOL"} {
+		if _, ok := parsed[code]; ok {
+			t.Errorf("%s was kept despite being malformed", code)
+		}
+	}
+}
+
+func TestParseAirports_Empty(t *testing.T) {
+	if parsed := parseAirports("   \n  "); len(parsed) != 0 {
+		t.Errorf("parseAirports(blank) = %v, want an empty table", keysOf(parsed))
+	}
+}
+
+func keysOf(m map[string]airport) []string {
+	codes := make([]string, 0, len(m))
+	for code := range m {
+		codes = append(codes, code)
+	}
+	return codes
+}
