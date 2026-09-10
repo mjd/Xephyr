@@ -24,6 +24,10 @@ func TestLiveOpenMeteoSmoke(t *testing.T) {
 		"denver co", "london england", "london", "paris france",
 		"salt lake city utah", "tokyo", "dino", "vars ontario",
 		"LHR", "den", "iata:NRT", "NYC", "SYD", "GIG", "ZZZ",
+		// A bare five digit number is a US ZIP: 80202 and 81507 are Denver and
+		// Grand Junction, and 75001 and 28001 are Addison and Albemarle rather
+		// than the Paris and Madrid codes sharing their digits.
+		"80202", "81507", "81523", "75001", "28001",
 		parseLatLon("39.7392 -104.9903"),
 	} {
 		got, err := app.sendWeatherRequest(loc)
