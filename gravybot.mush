@@ -50,6 +50,7 @@
 &GHELP_100 gravybot=Send [name(owner(me))] your [name(me)] ideas.
 &GHELP_110 gravybot=%bgurl-show recent Urls.
 &GHELP_120 gravybot=%bgurl <N>-show <N> recent Urls.
+&GHELP_125 gravybot=%bsay Gravybot beer me
 &GHELP_180 gravybot=%b%b@set me/GRAVYBOT_STOCK=vis
 &GHELP_130 gravybot=%bsay Gravybot weather <location>
 &GHELP_140 gravybot=%b%b&WEATHER_LOCATION me=<your default location>
