@@ -1176,6 +1176,8 @@ func TestIsLatLon(t *testing.T) {
 		{" 39.7392 , -104.9903 ", 39.7392, -104.9903, true},
 		{"0,0", 0, 0, true},
 		{"denver", 0, 0, false},
+		{"80202", 0, 0, false}, // a bare zip is a place, not half a coordinate
+		{"75001", 0, 0, false},
 		{"denver,co", 0, 0, false},
 		{"39.7392", 0, 0, false},
 		{"", 0, 0, false},
@@ -1543,5 +1545,26 @@ func TestSendWeatherRequest_AlwaysShowsBothUnits(t *testing.T) {
 	want := "Reykjavik, Iceland: Overcast 0.0C/32.0F 80.0%% 1.6kph/1.0mph N Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}
+
+// The geocoder indexes postal codes alongside place names, so a bare zip has
+// to reach it intact rather than being mistaken for a coordinate.
+func TestSendWeatherRequest_ZipCode(t *testing.T) {
+	var asked string
+	app := newOpenMeteoApp(t, func(name string) string {
+		asked = name
+		return `{"results":[{"name":"Denver","latitude":39.74,"longitude":-104.98,"country_code":"US","country":"United States","admin1":"Colorado"}]}`
+	}, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("80202")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if asked != "80202" {
+		t.Errorf("geocoder asked for %q, want the zip unaltered", asked)
+	}
+	if !strings.HasPrefix(got, "Denver, Colorado:") {
+		t.Errorf("got %q, want the zip resolved to Denver", got)
 	}
 }
