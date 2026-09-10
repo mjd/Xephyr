@@ -1351,7 +1351,7 @@ func TestResolvePlace_Empty(t *testing.T) {
 
 // ── sendWeatherRequest ───────────────────────────────────────────────────────
 
-func TestSendWeatherRequest_USUsesFahrenheitAndState(t *testing.T) {
+func TestSendWeatherRequest_USUsesTheStateAsRegion(t *testing.T) {
 	app := newOpenMeteoApp(t, func(string) string {
 		return `{"results":[{"name":"Denver","latitude":39.74,"longitude":-104.98,"country_code":"US","country":"United States","admin1":"Colorado"}]}`
 	}, stubForecast, stubAirQuality)
@@ -1360,13 +1360,13 @@ func TestSendWeatherRequest_USUsesFahrenheitAndState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	want := "Denver, Colorado: Clear 76.1F 19.0%% 5.5mph ESE Good:49\n"
+	want := "Denver, Colorado: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
 
-func TestSendWeatherRequest_NonUSUsesCelsiusAndCountry(t *testing.T) {
+func TestSendWeatherRequest_NonUSUsesTheCountryAsRegion(t *testing.T) {
 	app := newOpenMeteoApp(t, func(string) string {
 		return `{"results":[{"name":"London","latitude":51.5,"longitude":-0.13,"country_code":"GB","country":"United Kingdom","admin1":"England"}]}`
 	}, stubForecast, stubAirQuality)
@@ -1375,7 +1375,7 @@ func TestSendWeatherRequest_NonUSUsesCelsiusAndCountry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	want := "London, United Kingdom: Clear 24.5C 19.0%% 8.9kph ESE Good:49\n"
+	want := "London, United Kingdom: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
@@ -1390,7 +1390,7 @@ func TestSendWeatherRequest_Coordinates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendWeatherRequest: %v", err)
 	}
-	want := "39.7392,-104.9903: Clear 24.5C 19.0%% 8.9kph ESE Good:49\n"
+	want := "39.7392,-104.9903: Clear 24.5C/76.1F 19.0%% 8.9kph/5.5mph ESE Good:49\n"
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
@@ -1526,5 +1526,22 @@ func TestMatchPlace_StateAbbrevBeatsCountryCode(t *testing.T) {
 	place, ok := matchPlace(places, "ca")
 	if !ok || place.Admin1 != "California" {
 		t.Errorf("matchPlace(%q) = (%+v, %v), want California", "ca", place, ok)
+	}
+}
+
+// Every reading carries both unit systems, so neither an American nor a
+// metric reader has to convert in their head.
+func TestSendWeatherRequest_AlwaysShowsBothUnits(t *testing.T) {
+	app := newOpenMeteoApp(t, func(string) string {
+		return `{"results":[{"name":"Reykjavik","country_code":"IS","country":"Iceland"}]}`
+	}, `{"current":{"temperature_2m":0,"relative_humidity_2m":80,"wind_speed_10m":1.609344,"wind_direction_10m":0,"weather_code":3}}`, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("reykjavik")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	want := "Reykjavik, Iceland: Overcast 0.0C/32.0F 80.0%% 1.6kph/1.0mph N Good:49\n"
+	if got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }

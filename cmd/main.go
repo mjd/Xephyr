@@ -595,18 +595,22 @@ func (app *application) sendWeatherRequest(loc string) (string, error) {
 
 	// Open-Meteo has no reverse geocoder, so a coordinate query has no place
 	// name to print and the coordinates stand in for one.
-	if coords {
-		return fmt.Sprintf("%v: %v %.1fC %.1f%%%% %.1fkph %v%s\n",
-			loc, condition, current.Temperature, current.Humidity, current.WindSpeed, windDir, aqiStr), nil
+	label := loc
+	if !coords {
+		region := place.Country
+		if place.CountryCode == "US" {
+			region = place.Admin1
+		}
+		label = place.Name + ", " + region
 	}
 
-	if place.CountryCode == "US" {
-		return fmt.Sprintf("%v, %v: %v %.1fF %.1f%%%% %.1fmph %v%s\n",
-			place.Name, place.Admin1, condition, cToF(current.Temperature), current.Humidity, kphToMph(current.WindSpeed), windDir, aqiStr), nil
-	}
-
-	return fmt.Sprintf("%v, %v: %v %.1fC %.1f%%%% %.1fkph %v%s\n",
-		place.Name, place.Country, condition, current.Temperature, current.Humidity, current.WindSpeed, windDir, aqiStr), nil
+	// Both unit systems are always shown, metric first.
+	return fmt.Sprintf("%v: %v %.1fC/%.1fF %.1f%%%% %.1fkph/%.1fmph %v%s\n",
+		label, condition,
+		current.Temperature, cToF(current.Temperature),
+		current.Humidity,
+		current.WindSpeed, kphToMph(current.WindSpeed),
+		windDir, aqiStr), nil
 }
 
 func (app *application) getStockQuote(query string) (string, error) {
