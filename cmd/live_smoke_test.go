@@ -23,6 +23,7 @@ func TestLiveOpenMeteoSmoke(t *testing.T) {
 	for _, loc := range []string{
 		"denver co", "london england", "london", "paris france",
 		"salt lake city utah", "tokyo", "dino", "vars ontario",
+		"LHR", "den", "iata:NRT", "NYC", "SYD", "GIG", "ZZZ",
 		parseLatLon("39.7392 -104.9903"),
 	} {
 		got, err := app.sendWeatherRequest(loc)

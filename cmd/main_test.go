@@ -1568,3 +1568,50 @@ func TestSendWeatherRequest_ZipCode(t *testing.T) {
 		t.Errorf("got %q, want the zip resolved to Denver", got)
 	}
 }
+
+// The stub geocoder answers every lookup with no results, so an airport code
+// that still resolves can only have come from the embedded table.
+func TestSendWeatherRequest_AirportCode(t *testing.T) {
+	app := newOpenMeteoApp(t, geocodeEmpty, stubForecast, stubAirQuality)
+
+	cases := []struct {
+		query string
+		want  string
+	}{
+		{"LHR", "London, United Kingdom:"},
+		{"den", "Denver, Colorado:"},
+		{"iata:NRT", "Narita, Japan:"},
+		{"NYC", "New York, New York:"},
+	}
+	for _, tc := range cases {
+		got, err := app.sendWeatherRequest(tc.query)
+		if err != nil {
+			t.Errorf("sendWeatherRequest(%q): %v", tc.query, err)
+			continue
+		}
+		if !strings.HasPrefix(got, tc.want) {
+			t.Errorf("sendWeatherRequest(%q) = %q, want it to start %q", tc.query, got, tc.want)
+		}
+	}
+}
+
+// An unknown three-letter code must fall through to the geocoder rather than
+// dead-ending in the airport table.
+func TestSendWeatherRequest_UnknownAirportCodeFallsThrough(t *testing.T) {
+	var asked []string
+	app := newOpenMeteoApp(t, func(name string) string {
+		asked = append(asked, name)
+		return `{"results":[{"name":"Zzz","country_code":"NL","country":"Netherlands"}]}`
+	}, stubForecast, stubAirQuality)
+
+	got, err := app.sendWeatherRequest("ZZZ")
+	if err != nil {
+		t.Fatalf("sendWeatherRequest: %v", err)
+	}
+	if len(asked) == 0 {
+		t.Fatal("geocoder was never consulted for an unknown code")
+	}
+	if !strings.HasPrefix(got, "Zzz, Netherlands:") {
+		t.Errorf("got %q, want the geocoded result", got)
+	}
+}

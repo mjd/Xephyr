@@ -441,6 +441,11 @@ func (app *application) resolvePlace(loc string) (OpenMeteoPlace, bool, error) {
 		return OpenMeteoPlace{}, false, nil
 	}
 
+	// Airport codes are looked up locally; the geocoder has no notion of them.
+	if found, ok := lookupAirport(loc); ok {
+		return found.place(), true, nil
+	}
+
 	places, err := app.geocodeSearch(loc, 1)
 	if err != nil {
 		return OpenMeteoPlace{}, false, err
